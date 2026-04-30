@@ -1,0 +1,386 @@
+﻿# NACOS University Chapter — Product Requirements Document
+
+**Version:** 1.0  
+**Status:** Finalized for Development  
+**Stack:** Next.js + TypeScript + Tailwind CSS (Frontend) · Node.js + Express (Backend) · Supabase (DB + Storage) · Render (API Hosting) · Vercel (Frontend Hosting)
+
+---
+
+## 1. Product Overview
+
+An open-source full-stack web platform for the university NACOS (National Association of Computing Students) chapter, currently serving the Computer Science department with architecture ready for multi-department expansion. The platform consists of a public-facing landing site and a gated member portal called **The Hub**.
+
+### 1.1 Goals
+- Become the most functional and well-designed NACOS chapter website in Nigeria
+- Provide real, daily-use value to members through The Vault and credit economy
+- Replace fragmented WhatsApp communication with structured announcements and events
+- Build a living alumni network that grows in value over time
+- Maintain security and data integrity at every layer
+
+### 1.2 Non-Goals (V1)
+- Mobile native app
+- Department dues collection
+- Third-party payment integration
+- Mentorship matching system
+
+---
+
+## 2. Users & Roles
+
+| Role | Access | Description |
+|---|---|---|
+| `guest` | Public site only | Non-members, visitors |
+| `member` | Full Hub access | Active students and staff |
+| `alumni` | Hub (read-mostly) | Graduated members |
+| `executive` | Hub + Executive Portal | Assigned per session by super admin |
+| `super_admin` | Full system access | Permanent, no expiry |
+
+### 2.1 Role Notes
+- Executives are regular members elevated per academic session by super admin
+- Executive assignment displays across the system on their profile and the About page
+- Alumni badges show offices held, awards, and NACOS service history (added by admin/executives at the time)
+- Alumni can be reached via their included socials — no internal mentorship request system
+
+---
+
+## 3. Onboarding Flow
+
+No open signups. Access is invite-only via matric-number-tied PIN.
+
+```
+1. Super admin enters verified matric number into the system
+2. System generates a unique 8-character alphanumeric PIN (hashed in DB)
+   - Tied to that specific matric number
+   - Expires in 72 hours
+   - Admin can set level_of_entry and admission_type at generation
+3. Admin hands PIN to the verified owner
+4. User visits /hub/register
+   - Step 1: Enter matric number + PIN (validated server-side)
+   - Step 2: Set email, password, display name
+   - Step 3: Fill profile (photo optional at this stage)
+   - Email verification link sent on completion
+5. PIN marked as used — permanently invalidated
+6. Account active after email verification
+```
+
+**Edge cases:**
+- Expired PIN → admin regenerates, old one permanently invalidated
+- Already-used PIN → rejected
+- Matric mismatch → silent rejection (security)
+- Transfer students → `level_of_entry` pre-set at PIN generation (200, 300)
+- Repeat/suspended students → same level, different expected graduation year, `academic_status` tracks state
+- Readmitted students → `admission_type: readmission`
+
+---
+
+## 4. Landing Site (7 Pages)
+
+All content sections editable via admin CMS. Draft/publish workflow for blog and news.
+
+### 4.1 Pages
+
+**Home**
+- Hero section (editable headline, subtext, CTA buttons)
+- About NACOS teaser
+- Upcoming events preview (pulls from events table, max 3)
+- Latest blog/news preview (max 3)
+- Gallery teaser (latest 6 images)
+- The Hub teaser section (sells the portal to non-members)
+- Cyberspace community teaser with social links
+- WhatsApp community join link (prominent CTA)
+- Active announcement banner (if any, from announcements table)
+
+**About**
+- Mission and vision (CMS-editable)
+- Current executives (pulls from executive_assignments for current session)
+- Faculty & staff (from faculty_staff table)
+- Level advisors (from faculty_staff table, filtered by role)
+- Department info (current department name from site_settings)
+
+**The Pulse (Events & News)**
+- Upcoming and past events with RSVP button (members only, prompts login for guests)
+- News feed
+- Filter by type/date
+
+**Contact**
+- Contact details (CMS-editable: email, phone, office location)
+- Social links (all platforms including Cyberspace socials)
+- WhatsApp community link
+- Contact form (sends email via Resend)
+
+**Blogs & Newsletters**
+- Published blog posts (paginated)
+- Tag filtering
+- Individual post pages `/blog/:slug`
+- Newsletter signup (email collection, no external service needed — stored in DB)
+
+**Navbar / Footer / Mobile**
+- Sticky navbar with active state
+- Social links in footer (NACOS socials + Cyberspace socials)
+- WhatsApp community join button
+- Hamburger menu for mobile
+- The Hub CTA (prominent, contextual)
+- Privacy Policy and Terms of Use links in footer
+
+**Gallery**
+- Masonry or grid layout
+- Filterable by event/tag
+- Lightbox on click
+- High-quality images served via Supabase CDN with optimization params
+
+### 4.2 Cyberspace Community Integration
+- Dedicated teaser section on Home page
+- Cyberspace social links in navbar/footer (separate from NACOS socials)
+- CMS-editable Cyberspace description and links
+
+---
+
+## 5. The Hub (Member Portal)
+
+### 5.1 Auth Pages
+- `/hub` — Public teaser (sells the Hub)
+- `/hub/login`
+- `/hub/register` — Multi-step PIN-gated flow
+- `/hub/forgot-password`
+- `/hub/reset-password`
+- `/hub/verify-email`
+
+### 5.2 Dashboard `/hub/dashboard`
+- Personalized welcome with name
+- Wallet balance card
+- Quick stats: total uploads, credits earned, pending upload status
+- Active announcements
+- Upcoming events (next 2)
+- Vault leaderboard preview (top 3)
+- Recent notifications (last 5)
+
+### 5.3 The Vault `/hub/vault`
+- Filter: department, level, semester, course code/name search (full-text)
+- Upload flow: course selector → file upload (PDF only, max 10MB) → title + description
+- Approved uploads grid/list with download button
+- Download count displayed per upload
+- My Uploads tab (status: pending, approved, rejected with reason)
+- Flag button on each upload (with reason)
+- Credit reward shown on approval notification
+
+### 5.4 Wallet `/hub/wallet`
+- Balance display (prominent)
+- Transfer form: recipient search (by matric or display name), amount, **required remark**
+- Transaction history: filterable by type (credit, debit, transfer_in, transfer_out, redemption, upload_reward)
+- Each transaction: type icon, amount, remark, actor, timestamp, running balance
+
+### 5.5 Marketplace `/hub/marketplace`
+- Item grid with type badge (Digital / Physical)
+- Price in credits, stock count
+- Redeem flow: item detail → confirm → **required remark** → deduct credits
+- Digital items: delivery content shown immediately on fulfillment
+- My Orders tab (pending, fulfilled, cancelled)
+
+### 5.6 Events `/hub/events`
+- Published events list with RSVP toggle
+- RSVP cap shown (X spots left if limit set)
+- Event detail `/hub/events/:id` (full description, location, RSVP)
+- My RSVPs tab
+
+### 5.7 Alumni Directory `/hub/alumni`
+- Card grid: photo, name, graduation year, department
+- Social links on card (LinkedIn, GitHub, email if visible)
+- NACOS service badges: offices held, awards (added by admin)
+- Filter by graduation year, level of entry
+- Clicking card opens full profile
+
+### 5.8 Messages `/hub/messages`
+- Conversation list (most recent first)
+- Chat window with real-time feel (polling or Supabase realtime)
+- New conversation: search member by name or matric
+- System creates conversation only if one doesn't already exist between two users
+
+### 5.9 Notifications `/hub/notifications`
+- Full list, unread highlighted
+- Types: vault_approved, vault_rejected, credit_received, transfer, order_update, announcement, message, event_reminder
+- Mark individual or all as read
+- Notification bell in navbar with unread count badge
+
+### 5.10 Profile & Settings `/hub/profile`
+- View/edit: display name, bio, profile photo
+- Social links: LinkedIn, GitHub, personal email visibility toggle
+- Academic info display (read-only): level, year of admission, expected graduation, admission type
+- Change password
+- Notification preferences
+
+### 5.11 Executive & Admin Portal `/hub/admin`
+Access gated by `executive` or `super_admin` role.
+
+**Overview**
+- Member count, active users, total uploads, total credits distributed
+- Pending vault queue count
+- Pending orders count
+
+**Member Management**
+- Search, filter by role/level/status
+- View profile, change role, suspend/reactivate
+- View wallet balance and transaction history of any member
+
+**PIN Management** *(super_admin only)*
+- Generate PIN for matric number
+- Set level_of_entry, admission_type at generation
+- View generated pins (hashed — not reversible, but status visible)
+- Invalidate unexpired pins
+
+**Vault Moderation**
+- Pending uploads queue
+- Preview PDF, view metadata
+- Approve (triggers credit reward + notification) or reject (with reason)
+- Manage courses (add/edit/delete course codes)
+- View flagged uploads
+
+**Marketplace Management**
+- Add/edit/delete items (name, description, price, stock, type, image, digital content)
+- Order fulfillment queue (mark as fulfilled with note)
+- View all orders
+
+**Credit Management**
+- Issue credits to individual member or bulk (CSV upload of matric numbers + amounts)
+- Set upload reward rate (credits per approved upload)
+- Set transfer limits and cooldown period
+- Every issuance requires a remark
+
+**Events Management**
+- Create/edit/delete events
+- Set RSVP limit
+- View RSVP list with member details
+- Export RSVP list (CSV)
+
+**CMS Editor**
+- Edit all landing page sections (hero, about, contact, Cyberspace teaser)
+- Manage blog posts (draft/publish)
+- Manage news items
+- Manage gallery (upload/delete images, tag by event)
+- Manage faculty/staff/level advisors
+- Manage announcements (set target: public/members/all, set expiry)
+
+**Executive Assignment** *(super_admin only)*
+- Assign member to executive role for a session with title
+- View current and past executive assignments
+- Revoke assignment (returns member to member role)
+
+**Site Settings** *(super_admin only)*
+- Current department name and code
+- Current academic session
+- WhatsApp community link
+- Social links (NACOS + Cyberspace)
+- Upload reward rate
+- Transfer max limit and cooldown
+- Privacy policy and terms content (editable)
+
+---
+
+## 6. Security Requirements
+
+### 6.1 Authentication
+- Passwords: bcrypt with cost factor ≥ 12
+- JWT access tokens: 15-minute expiry, signed with RS256 (asymmetric)
+- Refresh tokens: 7-day expiry, stored as httpOnly Secure SameSite=Strict cookie, hashed in DB
+- One refresh token family per user (rotation + reuse detection — old token used = full family revoked)
+- Email verification required before any Hub access
+- PIN: bcrypt-hashed in DB, single-use, 72-hour expiry, constant-time comparison
+
+### 6.2 Authorization
+- Every protected route checks JWT validity and role
+- Row-Level Security (RLS) enabled on all Supabase tables as a second layer
+- Executives cannot perform super_admin-only actions (PIN generation, role assignment, site settings)
+- Users can only access their own wallet, transactions, messages
+
+### 6.3 Input & API Security
+- All inputs validated and sanitized server-side (Zod schemas)
+- File uploads: MIME type check + magic byte validation (PDFs only in Vault)
+- File size limits enforced server-side (not just client)
+- Rate limiting on all auth endpoints (express-rate-limit): login (5/15min), register (3/hour), forgot-password (3/hour)
+- Rate limiting on file upload endpoints
+- CORS: whitelist only the Vercel frontend domain
+- Helmet.js for HTTP security headers
+- SQL injection not possible via Supabase parameterized queries — never string-concatenate queries
+- All error responses use generic messages (never expose internals)
+
+### 6.4 Data Protection
+- No sensitive data in JWT payload (only user_id and role)
+- Wallet balance updated only via DB transactions (never direct update — always via ledger insert + balance update in a single transaction)
+- Transfer: sender balance check, debit sender, credit receiver — atomic DB transaction
+- Supabase storage: private buckets for vault PDFs (signed URLs with expiry), public bucket for images
+- Signed download URLs for vault files (expire after 1 hour, generated per request)
+- No raw file paths exposed in API responses
+
+### 6.5 Monitoring & Incident Response
+- Structured logging (Winston or Pino) — log all auth events, admin actions, errors
+- Never log passwords, tokens, or PII
+- Failed login attempts logged with IP (for future rate limit or lockout logic)
+- Supabase daily backups (included in free tier)
+
+---
+
+## 7. Legal & Compliance
+
+### 7.1 Privacy Policy
+- What data is collected (name, matric, email, academic info, usage data)
+- How it is used (authentication, platform features, communications)
+- Who can see it (admins, executives for moderation, alumni directory visibility is user-controlled)
+- Data retention (accounts inactive for 2+ years after graduation may be archived)
+- User rights (request deletion via contact email)
+- No data sold to third parties, ever
+- Hosted at `/privacy-policy` (linked in footer)
+
+### 7.2 Terms of Use
+- Acceptable use policy (no harassment via messages, no fake past questions)
+- Wallet and credits are non-monetary (no cash value, non-transferable outside the system)
+- NACOS reserves the right to suspend accounts violating community standards
+- Hosted at `/terms` (linked in footer)
+
+### 7.3 Cookie Policy
+- Only essential cookies used (refresh token httpOnly cookie)
+- No tracking cookies, no analytics that requires consent
+- Simple cookie notice on first visit
+
+---
+
+## 8. Performance Requirements
+
+- API response time: < 300ms for standard endpoints, < 1s for file operations
+- Image delivery: Supabase CDN with transformation params (`?width=800&quality=80`) — no full-size images served to frontend
+- PDF delivery: signed URLs direct from Supabase CDN — no API proxy
+- Render cold start mitigation: cron-job.org pings `/health` endpoint every 10 minutes
+- Supabase pause mitigation: same cron ping hits a lightweight Supabase query every 10 minutes
+- Frontend: Next.js Image component for all images, lazy loading, ISR for public content pages
+
+---
+
+## 9. Data & Deletion Policy
+
+- **CMS content:** Any section can be updated. Old values are overwritten (no versioning in V1)
+- **Gallery:** Images can be deleted by admin — file deleted from Supabase Storage bucket (no orphaned files)
+- **Vault uploads:** Rejected or removed uploads delete the file from storage
+- **User accounts:** Soft delete (is_active: false). Files and transactions remain for integrity. Hard delete available to super_admin only
+- **Wallet transactions:** Append-only. Never deleted. Immutable ledger
+- **Notifications:** Soft-clearable by user. Hard-deleted after 90 days
+- **Messages:** Deletable by sender (soft delete — shows "message deleted")
+- **Marketplace items:** Soft delete (is_available: false) to preserve order history
+
+---
+
+## 10. Newsletter Subscribers
+
+- Email collected on landing page newsletter form
+- Stored in `newsletter_subscribers` table (email, subscribed_at, is_active)
+- Admin can export list (CSV) from admin portal
+- Unsubscribe link in any email sent to subscribers
+- No third-party email marketing service in V1
+
+---
+
+## 11. Out of Scope (V1)
+
+- Push notifications (web push)
+- Real-time chat (polling acceptable in V1, Supabase realtime can be added in V2)
+- Department dues / payment processing
+- Mentorship request system
+- Mobile app
+- Multi-department UI (architecture is ready, UI toggle is V2)
