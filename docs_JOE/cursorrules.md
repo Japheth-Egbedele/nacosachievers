@@ -121,6 +121,9 @@ Full-stack NACOS university chapter platform.
   - Append `?width=800&quality=80` to image URLs in API responses for optimized delivery
   - Accept: JPEG, PNG, WebP only (validate magic bytes)
   - Max size: 5MB
+- Yearbook portraits → private bucket (`yearbook-portraits`); signed URLs only (same pattern as vault)
+- Compiled yearbook PDFs → private bucket (`yearbook-pdfs`); signed URLs minted per download request
+- Yearbook layout assets (templates/borders) → public bucket (`yearbook-assets`)
 - Delete file from storage when DB record is deleted — no orphaned files
 - Never expose the Supabase service role key to the client
 

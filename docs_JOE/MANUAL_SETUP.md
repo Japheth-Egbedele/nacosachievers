@@ -39,7 +39,7 @@ create type upload_status as enum ('pending', 'approved', 'rejected');
 create type order_status as enum ('pending', 'fulfilled', 'cancelled');
 create type item_type as enum ('digital', 'physical');
 create type event_status as enum ('draft', 'published', 'cancelled');
-create type notification_type as enum ('vault_approved', 'vault_rejected', 'credit_received', 'transfer', 'order_update', 'announcement', 'message', 'event_reminder', 'career_verified', 'career_rejected');
+create type notification_type as enum ('vault_approved', 'vault_rejected', 'credit_received', 'transfer', 'order_update', 'announcement', 'message', 'event_reminder', 'career_verified', 'career_rejected', 'yearbook_published');
 create type announcement_target as enum ('public', 'members', 'all');
 create type blog_status as enum ('draft', 'published');
 create type semester_type as enum ('1', '2');
@@ -488,6 +488,9 @@ insert into site_settings (key, value) values
   ('contact_phone', '""'),
   ('contact_office', '""');
 
+insert into cms_sections (section_key, content) values
+  ('yearbook_teaser', '{"headline": "Class Yearbooks", "subtext": "Browse alumni yearbooks when published.", "enabled": true}');
+
 create table newsletter_subscribers (
   id uuid primary key default uuid_generate_v4(),
   email text not null unique,
@@ -510,8 +513,9 @@ create table yearbook_editions (
   status yearbook_edition_status not null default 'draft',
   submissions_open boolean not null default true,
   cohort_alumni_unlocked_at timestamptz,
-  pdf_cache_url text,
+  pdf_storage_path text,
   pdf_cache_version integer not null default 0,
+  pdf_built_at_version integer not null default 0,
   pdf_generated_at timestamptz,
   pdf_build_status text not null default 'none',
   layout_config jsonb default '{}',
@@ -697,6 +701,7 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 # JWT (paste base64-encoded PEM content from Step 4)
 JWT_PRIVATE_KEY=base64_encoded_private_key
 JWT_PUBLIC_KEY=base64_encoded_public_key
+REFRESH_TOKEN_SECRET=generate_a_random_64_char_string_here
 
 # Email
 RESEND_API_KEY=your_resend_api_key
@@ -707,10 +712,11 @@ FRONTEND_URL=https://your-vercel-app.vercel.app
 CRON_SECRET=generate_a_random_32_char_string_here
 ```
 
-Generate `CRON_SECRET`:
+Generate `CRON_SECRET` and `REFRESH_TOKEN_SECRET`:
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
+Run twice for separate values.
 
 ---
 
@@ -759,6 +765,11 @@ alter table messages enable row level security;
 alter table notifications enable row level security;
 alter table conversations enable row level security;
 alter table conversation_participants enable row level security;
+alter table yearbook_editions enable row level security;
+alter table yearbook_slots enable row level security;
+alter table career_postings enable row level security;
+alter table lecturers enable row level security;
+alter table course_teaching_assignments enable row level security;
 
 -- Service role bypasses RLS (your backend uses service role key)
 -- These policies are safety nets for any direct DB access
@@ -773,8 +784,8 @@ Repeat the service role policy for each table. Your Node.js backend uses the ser
 
 ## Checklist Before First Deploy
 
-- [ ] Supabase project created, all SQL run in order
-- [ ] Both storage buckets created with correct privacy settings
+- [ ] Supabase project created, all SQL run in order (§2.1–2.21, then §2.18 indexes, then §2.19 super admin)
+- [ ] All **five** storage buckets created with correct privacy settings (see Step 3)
 - [ ] JWT key pair generated, stored as base64 in env
 - [ ] Resend account created, API key saved
 - [ ] Render service created, all env vars set

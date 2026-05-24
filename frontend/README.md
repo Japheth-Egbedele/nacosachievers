@@ -1,4 +1,12 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+This is a [Next.js](https://nextjs.org) project for the NACOS Achievers chapter platform (public site + The Hub).
+
+## Source of truth (read this first)
+
+**[Frontend Developer Handbook](../docs_JOE/FRONTEND_HANDBOOK.md)** — routes, API contract, auth, enums, and v1 scope.  
+Check the **Last updated** date at the top before each sprint.
+
+- API base URL: set `NEXT_PUBLIC_API_URL` in `.env.local`
+- Product/context: [PRD](../docs_General/PRD.doc) (marketing/hub UX); handbook supersedes PRD for newer features (yearbook, careers, vault extensions)
 
 ## Getting Started
 

@@ -1,7 +1,7 @@
 # NACOS Backend — Build Plan
 
 All phases are backend only (Node.js + Express + Supabase).
-Frontend (Next.js) is a separate repository and developer.
+Frontend (Next.js) is a separate repository and developer — **frontend contract: [FRONTEND_HANDBOOK.md](./FRONTEND_HANDBOOK.md)** (update its **Last updated** date when API behavior changes).
 
 ---
 
@@ -35,6 +35,7 @@ resend
 multer
 uuid
 date-fns
+pdf-lib
 typescript ts-node tsx
 @types/express @types/node @types/bcrypt @types/jsonwebtoken @types/multer
 eslint prettier
@@ -104,9 +105,16 @@ eslint prettier
 - `PATCH /api/v1/vault/courses/:id` — executive/admin only
 - `DELETE /api/v1/vault/courses/:id` — executive/admin only
 
+### Course detail (lecturers & materials)
+- `GET /api/v1/vault/courses/:id` — course metadata, **session-scoped** teaching roster (`course_teaching_assignments` + `lecturers`, including **`employment_type`** and **`teaching_status`** for sabbatical/part-time accuracy), approved uploads grouped or filterable by **`upload_kind`**
+- `GET /api/v1/admin/lecturers` / `POST` / `PATCH` / `DELETE` — executive/admin CRUD **`lecturers`**
+- `POST /api/v1/admin/vault/courses/:id/assignments` — assign lecturer to course for session + semester
+- `PATCH /api/v1/admin/vault/assignments/:id` — update **`teaching_status`**, semester, session
+- `DELETE /api/v1/admin/vault/assignments/:id` — remove assignment
+
 ### Uploads
-- `POST /api/v1/vault/uploads` — member upload (multipart PDF), stores to private bucket, status: pending
-- `GET /api/v1/vault/uploads` — list approved uploads (paginated, filterable: course, level, semester, search)
+- `POST /api/v1/vault/uploads` — member upload (multipart PDF), stores to private bucket, status: pending; accept optional **`upload_kind`** (`past_question` | `course_material`, default `past_question`)
+- `GET /api/v1/vault/uploads` — list approved uploads (paginated, filterable: course, level, semester, **`upload_kind`**, search)
 - `GET /api/v1/vault/uploads/mine` — own uploads with status
 - `GET /api/v1/vault/uploads/:id/download` — generates signed URL (1hr), increments download count
 - `DELETE /api/v1/vault/uploads/:id` — uploader or admin only, deletes DB record + storage file
@@ -244,6 +252,7 @@ eslint prettier
 - Health ping cron (`/src/jobs/healthPing.ts`) — runs every 10 minutes, pings own `/health` endpoint, prevents Render sleep
 - Expired PIN cleanup job — marks expired unused PINs as stale (runs daily)
 - Expired notification cleanup — deletes read notifications older than 90 days (runs weekly)
+- Expired career postings — set **`status` = `expired`** when **`expires_at` ≤ now()`** (runs daily)
 - CORS configuration (whitelist only `FRONTEND_URL` from env)
 - Helmet configuration (CSP, HSTS, X-Frame-Options, etc.)
 - Final review: all routes have auth middleware **except intentionally public routes** (e.g. Phase 12 yearbook list/detail/download, Phase 13 careers postings list), all list endpoints have pagination, all file deletions clean storage
@@ -263,28 +272,31 @@ eslint prettier
 
 ### Admin — editions & slots
 - `POST /api/v1/admin/yearbook/editions` — create edition (`title`, `session_id`, `submissions_open` bool, `cohort_alumni_unlocked_at` date)
-- `PATCH /api/v1/admin/yearbook/editions/:id` — edit edition including toggling **published**; submissions stay open until admin publishes (**no deadline field**); when **`published` = true**, member slots **lock** automatically (members can no longer `PATCH .../me/yearbook` for that edition)
+- `PATCH /api/v1/admin/yearbook/editions/:id` — edit edition including setting **`status`** to **`published`** (via `yearbook_edition_status`); submissions stay open until admin publishes (**no deadline field**); when **`status` = `published`**, set **`submissions_open` = false** and member slots **lock** automatically (members can no longer `PATCH .../me/yearbook` for that edition)
+- `GET /api/v1/admin/yearbook/editions` — list all editions (any status); admin preview
+- `GET /api/v1/admin/yearbook/editions/:id/slots` — list slots for edition (admin)
 - `POST /api/v1/admin/yearbook/editions/:id/rebuild-pdf` — force PDF regeneration (async)
 - `PATCH /api/v1/admin/yearbook/editions/:id/slots/:userId` — admin edits any slot at any time, **including after publish**; bumps **`pdf_cache_version`** on the edition and **queues async PDF rebuild**
 
 ### Member submission (hub, auth required)
-- `PATCH /api/v1/users/me/yearbook` — member updates **own** slot only while the target edition’s **`submissions_open`** is **true**; fields: `display_name`, `portrait_url` (upload flow targets **`yearbook-portraits`** bucket), `quote`
-- Member edits **lock automatically** when admin sets **`published` = true**; admins may **`PATCH .../admin/yearbook/.../slots/:userId`** after publish
+- `POST /api/v1/users/me/yearbook/portrait` — multipart portrait upload to **`yearbook-portraits`**; returns **`portrait_url`** (storage path or short-lived signed URL per API convention — frontend stores path returned for slot PATCH)
+- `PATCH /api/v1/users/me/yearbook` — member updates **own** slot for the **current open edition** (single **`submissions_open`** edition per product rule, or require **`edition_id`** in body if multiple); allowed only while **`submissions_open`** is **true** **and** edition **`status` ≠ `published`**; fields: `display_name`, `portrait_url`, `quote`
+- Member edits **lock automatically** when admin sets **`status` = `published`**; admins may **`PATCH .../admin/yearbook/.../slots/:userId`** after publish
 
 ### Public (no auth)
-- `GET /api/v1/yearbook/editions` — list editions where **`published` = true** AND **`cohort_alumni_unlocked_at` ≤ now()**
+- `GET /api/v1/yearbook/editions` — list editions where **`status` = `published`** AND **`cohort_alumni_unlocked_at` ≤ now()**
 - `GET /api/v1/yearbook/editions/:id` — edition metadata; **404** if visibility rules fail
-- `GET /api/v1/yearbook/editions/:id/download` — returns **cached PDF** via **fresh signed URL** from Supabase Storage (**`yearbook-pdfs`**); **rate limited**; if edition’s **`pdf_cache_version`** has changed since the last successful build, **trigger regenerate** then return signed URL when ready (or appropriate status while building)
+- `GET /api/v1/yearbook/editions/:id/download` — returns **cached PDF** via **fresh signed URL** from Supabase Storage (**`yearbook-pdfs`**); **rate limited**; compare edition **`pdf_cache_version`** to **`pdf_built_at_version`** — if out of date, **trigger regenerate** then return signed URL when ready (or **202** / **`pdf_build_status`** while building)
 
 ### Services
 - **`yearbook.service.ts`** — edition and slot CRUD, visibility guard logic, enqueue/trigger PDF rebuild on version bump
-- **`yearbook-pdf.service.ts`** — **`pdf-lib`** assembly (v1: **portraits + quotes only** — portrait grid layout, name and quote per slot); writes compiled PDF to **`yearbook-pdfs`** Storage bucket; **stores signed URL** on the edition record and bumps **`pdf_generated_at`** (refresh/regenerate signed URL when **`pdf_cache_version`** changes per rebuild workflow)
+- **`yearbook-pdf.service.ts`** — **`pdf-lib`** assembly (v1: **portraits + quotes only** — portrait grid layout, name and quote per slot); writes compiled PDF to **`yearbook-pdfs`** Storage bucket; persist **`pdf_storage_path`** (object key) on edition, set **`pdf_built_at_version` = `pdf_cache_version`**, bump **`pdf_generated_at`**; **do not** persist long-lived signed URLs — download endpoint mints fresh signed URLs from **`pdf_storage_path`**
 
 ### CMS (Phase 7)
 - Add CMS section key **`yearbook_teaser`** to **`cms_sections`** (or equivalent); surfaced via existing `GET/PUT /api/v1/cms/:sectionKey` — **no new CMS endpoints**
 
 ### Notifications (Phase 8)
-- Extend **`notification.service.ts`** (and DB **`notification_type`** enum per MANUAL_SETUP): when an edition is **published**, **notify members** who have a slot in that edition (per product rules: e.g. all included slots)
+- Extend **`notification.service.ts`** (and DB **`notification_type`** enum per MANUAL_SETUP): when an edition **`status`** becomes **`published`**, **notify members** who have a slot in that edition with type **`yearbook_published`**
 
 ### v1 scope
 - **Portraits + quotes only.** No groups, superlatives, or clubs pages.
@@ -299,10 +311,12 @@ eslint prettier
 - **Internships only.** No general job postings, no alumni attestation flow.
 
 ### Public (no auth)
-- `GET /api/v1/careers/postings` — list postings where **`status` = verified** and **not expired** (e.g. **`expires_at` is null or `expires_at` > now()** — finalize in schema); **paginated**; filterable by **`work_mode`** and **`location`**
+- `GET /api/v1/careers/postings` — list postings where **`status` = `verified`** and **not expired** (`expires_at` is null or **`expires_at` > now()**); **paginated**; filterable by **`work_mode`** and **`location`**
+- `GET /api/v1/careers/postings/:id` — verified posting detail; **404** if not visible
 
 ### Member (auth required)
-- `POST /api/v1/careers/postings` — submit an **internship** posting; **`status`** defaults to **`pending_verification`**; **rate limited** — max **3 submissions per user per 24 hours**; validate **`application_url`** is **not** a disposable-email / throwaway domain (use blocklist or DNS heuristic in **`career.service.ts`**)
+- `POST /api/v1/careers/postings` — submit an **internship** posting; **`status`** defaults to **`pending_verification`**; **rate limited** — max **3 submissions per user per 24 hours**; validate **`application_url`** host is **not** a known disposable / throwaway domain
+- `GET /api/v1/careers/postings/mine` — own submissions (all statuses, paginated)
 
 ### Admin / Executive
 - `GET /api/v1/admin/careers/postings` — full list with **`status`** filter (pending, verified, rejected, etc.)
@@ -357,5 +371,5 @@ eslint prettier
 When implementing Phase 13, extend Postgres enums and seed **site_settings** as follows:
 
 - **`transaction_type`** — add **`career_submission_bounty`** (wallet ledger type used when paying the submitter on verified internship posting; amount driven by settings, not hardcoded).
-- **`notification_type`** — add **`career_verified`**, **`career_rejected`** (submitter notifications after moderation).
+- **`notification_type`** — add **`career_verified`**, **`career_rejected`**, **`yearbook_published`**
 - **`site_settings`** — add key **`career_submission_bounty_credits`** with default **`0`** (JSON number); admins enable the bounty by setting a positive value (see seed insert in MANUAL_SETUP.md).
