@@ -141,6 +141,7 @@ eslint prettier
 - All balance modifications go through `wallet.service.ts` — never direct DB updates elsewhere
 - Every credit/debit/transfer inserts into `wallet_transactions` (append-only)
 - `balance_after` computed and stored on each transaction record
+- **Phase 13:** verified internship postings may credit the submitter using **`transaction_type` = `career_submission_bounty`** when **`career_submission_bounty_credits`** site setting is greater than **0** and **`submitter_credited`** is false (same idempotent pattern as vault **`upload_reward`**)
 
 ---
 
@@ -203,7 +204,7 @@ eslint prettier
 - `GET /api/v1/notifications` — own notifications (paginated, unread first)
 - `PATCH /api/v1/notifications/:id/read` — mark single read
 - `PATCH /api/v1/notifications/read-all` — mark all read
-- `notification.service.ts` — internal service called by other services (vault, wallet, marketplace, events)
+- `notification.service.ts` — internal service called by other services (vault, wallet, marketplace, events, yearbook, careers)
   - Creates DB notification record
   - Optionally sends email (based on user's notification preferences)
 - Unread count included in `/users/me` response for navbar badge
@@ -245,7 +246,72 @@ eslint prettier
 - Expired notification cleanup — deletes read notifications older than 90 days (runs weekly)
 - CORS configuration (whitelist only `FRONTEND_URL` from env)
 - Helmet configuration (CSP, HSTS, X-Frame-Options, etc.)
-- Final review: all routes have auth middleware, all list endpoints have pagination, all file deletions clean storage
+- Final review: all routes have auth middleware **except intentionally public routes** (e.g. Phase 12 yearbook list/detail/download, Phase 13 careers postings list), all list endpoints have pagination, all file deletions clean storage
+
+---
+
+## Phase 12 — Yearbook
+
+**Cursor handles:**
+
+### PDF generation
+- Use **`pdf-lib`** (not Puppeteer/Playwright) — Render free tier cannot support Chromium memory requirements.
+
+### Storage buckets (**Cursor** implements upload/download via signed URLs; **bucket creation** — MANUAL_SETUP.md)
+- **`yearbook-portraits`** — private bucket; member portrait uploads served via signed URLs
+- **`yearbook-pdfs`** — private bucket; compiled edition PDFs served via signed URLs
+
+### Admin — editions & slots
+- `POST /api/v1/admin/yearbook/editions` — create edition (`title`, `session_id`, `submissions_open` bool, `cohort_alumni_unlocked_at` date)
+- `PATCH /api/v1/admin/yearbook/editions/:id` — edit edition including toggling **published**; submissions stay open until admin publishes (**no deadline field**); when **`published` = true**, member slots **lock** automatically (members can no longer `PATCH .../me/yearbook` for that edition)
+- `POST /api/v1/admin/yearbook/editions/:id/rebuild-pdf` — force PDF regeneration (async)
+- `PATCH /api/v1/admin/yearbook/editions/:id/slots/:userId` — admin edits any slot at any time, **including after publish**; bumps **`pdf_cache_version`** on the edition and **queues async PDF rebuild**
+
+### Member submission (hub, auth required)
+- `PATCH /api/v1/users/me/yearbook` — member updates **own** slot only while the target edition’s **`submissions_open`** is **true**; fields: `display_name`, `portrait_url` (upload flow targets **`yearbook-portraits`** bucket), `quote`
+- Member edits **lock automatically** when admin sets **`published` = true**; admins may **`PATCH .../admin/yearbook/.../slots/:userId`** after publish
+
+### Public (no auth)
+- `GET /api/v1/yearbook/editions` — list editions where **`published` = true** AND **`cohort_alumni_unlocked_at` ≤ now()**
+- `GET /api/v1/yearbook/editions/:id` — edition metadata; **404** if visibility rules fail
+- `GET /api/v1/yearbook/editions/:id/download` — returns **cached PDF** via **fresh signed URL** from Supabase Storage (**`yearbook-pdfs`**); **rate limited**; if edition’s **`pdf_cache_version`** has changed since the last successful build, **trigger regenerate** then return signed URL when ready (or appropriate status while building)
+
+### Services
+- **`yearbook.service.ts`** — edition and slot CRUD, visibility guard logic, enqueue/trigger PDF rebuild on version bump
+- **`yearbook-pdf.service.ts`** — **`pdf-lib`** assembly (v1: **portraits + quotes only** — portrait grid layout, name and quote per slot); writes compiled PDF to **`yearbook-pdfs`** Storage bucket; **stores signed URL** on the edition record and bumps **`pdf_generated_at`** (refresh/regenerate signed URL when **`pdf_cache_version`** changes per rebuild workflow)
+
+### CMS (Phase 7)
+- Add CMS section key **`yearbook_teaser`** to **`cms_sections`** (or equivalent); surfaced via existing `GET/PUT /api/v1/cms/:sectionKey` — **no new CMS endpoints**
+
+### Notifications (Phase 8)
+- Extend **`notification.service.ts`** (and DB **`notification_type`** enum per MANUAL_SETUP): when an edition is **published**, **notify members** who have a slot in that edition (per product rules: e.g. all included slots)
+
+### v1 scope
+- **Portraits + quotes only.** No groups, superlatives, or clubs pages.
+
+---
+
+## Phase 13 — Career Board
+
+**Cursor handles:**
+
+### v1 scope
+- **Internships only.** No general job postings, no alumni attestation flow.
+
+### Public (no auth)
+- `GET /api/v1/careers/postings` — list postings where **`status` = verified** and **not expired** (e.g. **`expires_at` is null or `expires_at` > now()** — finalize in schema); **paginated**; filterable by **`work_mode`** and **`location`**
+
+### Member (auth required)
+- `POST /api/v1/careers/postings` — submit an **internship** posting; **`status`** defaults to **`pending_verification`**; **rate limited** — max **3 submissions per user per 24 hours**; validate **`application_url`** is **not** a disposable-email / throwaway domain (use blocklist or DNS heuristic in **`career.service.ts`**)
+
+### Admin / Executive
+- `GET /api/v1/admin/careers/postings` — full list with **`status`** filter (pending, verified, rejected, etc.)
+- `PATCH /api/v1/admin/careers/postings/:id/verify` — set **`status`** to **`verified`** or **`rejected`** with optional **`reason`**; on **`verified`**: award **wallet credits** to **submitter** via **`wallet.service.ts`** only if **`submitter_credited`** is **false**, then set **`submitter_credited`** to **true** (prevents double payout); persist **`verifier_id`** (acting admin/executive user) and **`verified_at`**
+
+### Services
+- **`career.service.ts`** — posting CRUD, verification workflow, **`application_url`** validation helper (disposable-domain rejection)
+- **`wallet.service.ts`** — credit payout on verify (**same atomic pattern** as vault upload approval / **`upload_reward`**)
+- **`notification.service.ts`** — notify **submitter** on **`verified`** or **`rejected`** (extend **`notification_type`** — see schema notes below)
 
 ---
 
@@ -267,7 +333,8 @@ eslint prettier
     "resend": "^2.0.0",
     "multer": "^1.4.5",
     "uuid": "^9.0.0",
-    "date-fns": "^3.0.0"
+    "date-fns": "^3.0.0",
+    "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
     "typescript": "^5.0.0",
@@ -284,3 +351,11 @@ eslint prettier
   }
 }
 ```
+
+### Schema & settings notes (MANUAL_SETUP.md)
+
+When implementing Phase 13, extend Postgres enums and seed **site_settings** as follows:
+
+- **`transaction_type`** — add **`career_submission_bounty`** (wallet ledger type used when paying the submitter on verified internship posting; amount driven by settings, not hardcoded).
+- **`notification_type`** — add **`career_verified`**, **`career_rejected`** (submitter notifications after moderation).
+- **`site_settings`** — add key **`career_submission_bounty_credits`** with default **`0`** (JSON number); admins enable the bounty by setting a positive value (see seed insert in MANUAL_SETUP.md).

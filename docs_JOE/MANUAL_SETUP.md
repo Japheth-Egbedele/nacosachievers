@@ -21,7 +21,7 @@ Complete them in order before running any code.
 
 ## Step 2 — Supabase Database Tables
 
-Go to **SQL Editor** in Supabase and run each block below in order.
+Go to **SQL Editor** in Supabase and run each block below **from top to bottom**. Sections **2.20** and **2.21** intentionally appear **before 2.18** so yearbook and career tables exist before indexes reference them.
 
 ### 2.1 — Enable UUID Extension
 ```sql
@@ -34,15 +34,21 @@ create type user_role as enum ('super_admin', 'executive', 'member', 'alumni', '
 create type user_level as enum ('100', '200', '300', '400', 'staff');
 create type academic_status as enum ('active', 'alumni', 'suspended', 'transferred_out');
 create type admission_type as enum ('regular', 'transfer', 'readmission');
-create type transaction_type as enum ('credit', 'debit', 'transfer_in', 'transfer_out', 'redemption', 'upload_reward');
+create type transaction_type as enum ('credit', 'debit', 'transfer_in', 'transfer_out', 'redemption', 'upload_reward', 'career_submission_bounty');
 create type upload_status as enum ('pending', 'approved', 'rejected');
 create type order_status as enum ('pending', 'fulfilled', 'cancelled');
 create type item_type as enum ('digital', 'physical');
 create type event_status as enum ('draft', 'published', 'cancelled');
-create type notification_type as enum ('vault_approved', 'vault_rejected', 'credit_received', 'transfer', 'order_update', 'announcement', 'message', 'event_reminder');
+create type notification_type as enum ('vault_approved', 'vault_rejected', 'credit_received', 'transfer', 'order_update', 'announcement', 'message', 'event_reminder', 'career_verified', 'career_rejected');
 create type announcement_target as enum ('public', 'members', 'all');
 create type blog_status as enum ('draft', 'published');
 create type semester_type as enum ('1', '2');
+create type yearbook_edition_status as enum ('draft', 'published', 'archived');
+create type employment_type as enum ('full_time', 'part_time', 'adjunct', 'visiting', 'external');
+create type teaching_status as enum ('active', 'on_sabbatical', 'on_leave');
+create type upload_kind as enum ('past_question', 'course_material');
+create type career_posting_status as enum ('draft', 'pending_verification', 'verified', 'rejected', 'expired');
+create type work_mode as enum ('onsite', 'remote', 'hybrid');
 ```
 
 ### 2.3 — Departments
@@ -200,6 +206,8 @@ create table vault_uploads (
   updated_at timestamptz not null default now()
 );
 
+alter table vault_uploads add column upload_kind upload_kind not null default 'past_question';
+
 create table vault_flags (
   id uuid primary key default uuid_generate_v4(),
   upload_id uuid not null references vault_uploads(id) on delete cascade,
@@ -208,6 +216,35 @@ create table vault_flags (
   resolved boolean not null default false,
   resolved_by uuid references users(id),
   created_at timestamptz not null default now()
+);
+```
+
+Lecturers and per-session teaching assignments (vault courses):
+
+```sql
+create table lecturers (
+  id uuid primary key default uuid_generate_v4(),
+  name text not null,
+  title text,
+  photo_url text,
+  email text,
+  department_id uuid references departments(id),
+  employment_type employment_type not null default 'full_time',
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table course_teaching_assignments (
+  id uuid primary key default uuid_generate_v4(),
+  course_id uuid not null references vault_courses(id) on delete cascade,
+  lecturer_id uuid not null references lecturers(id),
+  session_id uuid references academic_sessions(id),
+  semester semester_type not null,
+  teaching_status teaching_status not null default 'active',
+  created_by uuid references users(id),
+  created_at timestamptz not null default now(),
+  unique(course_id, lecturer_id, session_id, semester)
 );
 ```
 
@@ -437,6 +474,7 @@ insert into site_settings (key, value) values
   ('vault_upload_credit_reward', '10'),
   ('max_transfer_amount', '500'),
   ('transfer_cooldown_minutes', '5'),
+  ('career_submission_bounty_credits', '0'),
   ('current_department_name', '"Computer Science"'),
   ('current_department_code', '"CS"'),
   ('whatsapp_community_link', '""'),
@@ -458,6 +496,70 @@ create table newsletter_subscribers (
 );
 ```
 
+**Career board (Phase 13):** `career_submission_bounty_credits` defaults to **0** so no payout runs until an admin sets a positive integer via site settings.
+
+### 2.20 — Yearbook
+
+Run after core tables (`users`, `academic_sessions`) exist.
+
+```sql
+create table yearbook_editions (
+  id uuid primary key default uuid_generate_v4(),
+  title text not null,
+  session_id uuid references academic_sessions(id),
+  status yearbook_edition_status not null default 'draft',
+  submissions_open boolean not null default true,
+  cohort_alumni_unlocked_at timestamptz,
+  pdf_cache_url text,
+  pdf_cache_version integer not null default 0,
+  pdf_generated_at timestamptz,
+  pdf_build_status text not null default 'none',
+  layout_config jsonb default '{}',
+  created_by uuid references users(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table yearbook_slots (
+  id uuid primary key default uuid_generate_v4(),
+  edition_id uuid not null references yearbook_editions(id) on delete cascade,
+  user_id uuid not null references users(id),
+  display_name text,
+  portrait_url text,
+  quote text,
+  include_in_yearbook boolean not null default true,
+  sort_key integer not null default 0,
+  admin_notes text,
+  last_edited_by uuid references users(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(edition_id, user_id)
+);
+```
+
+### 2.21 — Career Board
+
+```sql
+create table career_postings (
+  id uuid primary key default uuid_generate_v4(),
+  title text not null,
+  organization text not null,
+  description text not null,
+  application_url text not null,
+  location text,
+  work_mode work_mode not null default 'onsite',
+  expires_at timestamptz,
+  status career_posting_status not null default 'pending_verification',
+  submitter_id uuid references users(id),
+  submitter_credited boolean not null default false,
+  verifier_id uuid references users(id),
+  verified_at timestamptz,
+  rejection_reason text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+```
+
 ### 2.18 — Indexes
 ```sql
 create index idx_users_matric on users(matric_number);
@@ -472,6 +574,9 @@ create index idx_messages_conversation on messages(conversation_id, created_at d
 create index idx_blog_posts_slug on blog_posts(slug);
 create index idx_blog_posts_status on blog_posts(status);
 create index idx_events_status_start on events(status, start_datetime);
+create index idx_yearbook_slots_edition on yearbook_slots(edition_id);
+create index idx_career_postings_status on career_postings(status, expires_at);
+create index idx_course_assignments_course on course_teaching_assignments(course_id, session_id);
 ```
 
 ### 2.19 — Seed Super Admin
@@ -502,12 +607,22 @@ insert into users (
 
 Go to **Storage** in Supabase dashboard.
 
-**Create these two buckets:**
+**Create these buckets:**
 
 | Bucket Name | Public? | Purpose |
 |---|---|---|
 | `vault-documents` | ❌ Private | Past question PDFs |
 | `public-images` | ✅ Public | Profile photos, gallery, blog covers, faculty photos, marketplace item images |
+| `yearbook-portraits` | ❌ Private | Member portrait uploads for yearbook slots |
+| `yearbook-pdfs` | ❌ Private | Compiled yearbook PDF per edition |
+| `yearbook-assets` | ✅ Public | Background templates, borders, decorative assets |
+
+**For `yearbook-portraits` and `yearbook-pdfs`:**
+- Keep private
+- Access only via signed URLs generated by your backend (service role key)
+
+**For `yearbook-assets`:**
+- Public CDN URLs are acceptable for template/decorative assets
 
 **For `vault-documents`:**
 - Keep private
