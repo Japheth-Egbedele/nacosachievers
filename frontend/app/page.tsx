@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import BrandLogo from './components/BrandLogo';
 import NavBar from './components/NavBar';
 
 export default function Home() {
@@ -6,6 +7,9 @@ export default function Home() {
     <div className="flex min-h-screen flex-col">
       <NavBar />
       <main className="flex flex-1 flex-col items-center justify-center px-4 py-24 text-center">
+        <div className="mb-8 flex justify-center">
+          <BrandLogo href="/" size="lg" />
+        </div>
         <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-emerald-600">
           Achievers Chapter
         </p>

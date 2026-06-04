@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import HubAuthBrand from '@/app/components/HubAuthBrand';
 import { useAuth } from '@/lib/auth-context';
 import { ApiClientError } from '@/lib/api';
 
@@ -31,6 +32,7 @@ export default function HubLoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <HubAuthBrand />
         <h1 className="text-2xl font-bold">Sign in to The Hub</h1>
         <p className="mt-2 text-sm text-zinc-500">
           New here?{' '}

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import BrandLogo from '@/app/components/BrandLogo';
 import { useAuth } from '@/lib/auth-context';
 
 const memberLinks = [
@@ -29,9 +30,7 @@ export default function HubShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
-          <Link href="/hub/dashboard" className="font-bold text-emerald-700 dark:text-emerald-400">
-            NACOS Hub
-          </Link>
+          <BrandLogo href="/hub/dashboard" label="Hub" size="sm" />
           <nav className="flex items-center gap-4 text-sm">
             {memberLinks.map((l) => (
               <Link
