@@ -28,13 +28,19 @@ Executives can manage **elections** but **cannot** generate PINs (super_admin on
 
 ## Test accounts
 
+### Admin portal
+
+Executives and super admins see **Admin** in the Hub nav (`/hub/admin`) — overview, members, vault, elections, wallet, CMS, etc. PINs and site settings are **super_admin only**.
+
 ### Admin (elections manager)
 
 Use the seeded `super_admin` from §2.19 — log in at `/hub/login`.
 
 ### Member (voter)
 
-1. Log in as super_admin → **PINs** in the nav (or dashboard).
+**Option A — PIN flow**
+
+1. Log in as super_admin → **Admin** → **PINs**.
 2. Create a PIN:
 
 ```bash
@@ -55,12 +61,48 @@ update users set is_email_verified = true where matric_number = 'CS/2023/001';
 
 5. Log in as the new member.
 
+**Option B — SQL mock voters (no Resend domain)**
+
+Git Bash treats `!` inside double-quoted strings as history expansion. Use one of these to generate a bcrypt hash:
+
+```bash
+cd backend
+set +H
+node -e 'require("bcrypt").hash("TestPass123!", 12).then(h => console.log(h))'
+```
+
+Or run from **cmd.exe** / **PowerShell** (no `!` issue):
+
+```powershell
+cd backend
+node -e "require('bcrypt').hash('TestPass123!', 12).then(h => console.log(h))"
+```
+
+Copy the printed hash, then in **Supabase → SQL Editor** (replace `PASTE_BCRYPT_HASH` and use unique matrics/emails):
+
+```sql
+insert into users (
+  matric_number, email, password_hash, role,
+  first_name, last_name, is_email_verified, academic_status
+) values
+  ('AU23AC5698', 'voter1@test.local', '$2b$12$fLIvhKLb8fszVWtchRBt/eiq37SkGX5hNGZuW1Rc.4B5gvTFvIbJ.', 'member', 'Test', 'Voter One', true, 'active'),
+  ('AU23AC5690', 'voter2@test.local', '$2b$12$fLIvhKLb8fszVWtchRBt/eiq37SkGX5hNGZuW1Rc.4B5gvTFvIbJ.', 'member', 'Test', 'Voter Two', true, 'active'),
+  ('AU23AC5640', 'voter3@test.local', '$2b$12$fLIvhKLb8fszVWtchRBt/eiq37SkGX5hNGZuW1Rc.4B5gvTFvIbJ.', 'member', 'Test', 'Voter Three', true, 'active');
+```
+TestPass123!
+
+All three rows can share the same hash if they share the password `TestPass123!`. Log in at `/hub/login` with each email + that password.
+
 ## Election dry-run
 
 1. As admin: `/hub/admin/elections` → create election (start = now, end = tomorrow).
-2. Add candidates (positions e.g. President, Secretary).
-3. As member: `/hub/elections` → open election → submit ballot.
-4. Confirm second vote returns an error; results show counts.
+2. Open **Manage** → **Setup** tab:
+   - Add **positions** (e.g. President, Secretary).
+   - Under each position, add **contestants** (two or more per race).
+   - Leave **require all positions** checked so voters must pick one per post.
+3. As a **student account** (member or executive — not super_admin): `/hub/elections` → open election → pick one contestant per position → **Review & submit ballot**.
+4. Confirm second submit returns an error; **Results** show winners and percentages **per position** (not global).
+5. Admin **Results & analytics** tab: turnout, ballots cast, per-position bars.
 
 ## Health check
 

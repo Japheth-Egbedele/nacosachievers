@@ -9,6 +9,11 @@ export async function listElections(req: Request, res: Response): Promise<void> 
   sendSuccess(res, { elections: data });
 }
 
+export async function getElection(req: Request, res: Response): Promise<void> {
+  const data = await electionService.getAdminElectionSetup(req.params.id!);
+  sendSuccess(res, data);
+}
+
 export async function createElection(req: Request, res: Response): Promise<void> {
   const body = req.body as {
     title: string;
@@ -16,6 +21,7 @@ export async function createElection(req: Request, res: Response): Promise<void>
     kind?: 'executive' | 'custom';
     scope?: 'chapter' | 'department';
     department_id?: string;
+    require_all_positions?: boolean;
     start_date: string;
     end_date: string;
   };
@@ -29,6 +35,7 @@ export async function updateElection(req: Request, res: Response): Promise<void>
     description?: string;
     start_date?: string;
     end_date?: string;
+    require_all_positions?: boolean;
   };
   const data = await electionService.updateElection(req.params.id!, body);
   sendSuccess(res, data);
@@ -39,10 +46,27 @@ export async function deleteElection(req: Request, res: Response): Promise<void>
   sendSuccess(res, null, HTTP_STATUS.OK);
 }
 
+export async function createPosition(req: Request, res: Response): Promise<void> {
+  const body = req.body as { title: string; sort_order?: number };
+  const data = await electionService.createPosition(req.params.id!, body);
+  sendSuccess(res, data, HTTP_STATUS.CREATED);
+}
+
+export async function updatePosition(req: Request, res: Response): Promise<void> {
+  const body = req.body as { title?: string; sort_order?: number };
+  const data = await electionService.updatePosition(req.params.positionId!, body);
+  sendSuccess(res, data);
+}
+
+export async function deletePosition(req: Request, res: Response): Promise<void> {
+  await electionService.deletePosition(req.params.positionId!);
+  sendSuccess(res, null, HTTP_STATUS.OK);
+}
+
 export async function createCandidate(req: Request, res: Response): Promise<void> {
   const body = req.body as {
+    position_id: string;
     name: string;
-    position: string;
     manifesto?: string;
     image_url?: string;
   };
@@ -53,7 +77,6 @@ export async function createCandidate(req: Request, res: Response): Promise<void
 export async function updateCandidate(req: Request, res: Response): Promise<void> {
   const body = req.body as {
     name?: string;
-    position?: string;
     manifesto?: string;
     image_url?: string;
   };

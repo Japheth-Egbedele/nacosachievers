@@ -45,28 +45,16 @@ export default function HubShell({ children }: { children: React.ReactNode }) {
                 {l.label}
               </Link>
             ))}
-            {isSuperAdmin && (
-              <Link
-                href="/hub/admin/pins"
-                className={
-                  pathname === '/hub/admin/pins'
-                    ? 'font-semibold text-emerald-700'
-                    : 'text-zinc-600'
-                }
-              >
-                PINs
-              </Link>
-            )}
             {isAdmin && (
               <Link
-                href="/hub/admin/elections"
+                href="/hub/admin"
                 className={
-                  pathname?.startsWith('/hub/admin/elections')
+                  pathname?.startsWith('/hub/admin')
                     ? 'font-semibold text-emerald-700'
                     : 'text-zinc-600'
                 }
               >
-                Elections
+                Admin
               </Link>
             )}
             <button

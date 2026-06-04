@@ -632,6 +632,8 @@ create table career_postings (
 
 ### 2.22 — Elections (integrated voting)
 
+Positions (posts) are defined first; contestants belong to a position. Voters pick **one contestant per position**, submit once, then the ballot is locked.
+
 ```sql
 create table elections (
   id uuid primary key default uuid_generate_v4(),
@@ -640,6 +642,7 @@ create table elections (
   kind election_kind not null default 'executive',
   scope election_scope not null default 'chapter',
   department_id uuid references departments(id),
+  require_all_positions boolean not null default true,
   start_date timestamptz not null,
   end_date timestamptz not null,
   created_by uuid not null references users(id),
@@ -648,9 +651,20 @@ create table elections (
   check (end_date > start_date)
 );
 
+create table election_positions (
+  id uuid primary key default uuid_generate_v4(),
+  election_id uuid not null references elections(id) on delete cascade,
+  title text not null,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (election_id, title)
+);
+
 create table election_candidates (
   id uuid primary key default uuid_generate_v4(),
   election_id uuid not null references elections(id) on delete cascade,
+  position_id uuid not null references election_positions(id) on delete cascade,
   name text not null,
   position text not null,
   manifesto text,
@@ -670,6 +684,8 @@ create table election_votes (
 
 create index idx_election_votes_election_user on election_votes(election_id, user_id);
 create index idx_election_candidates_election on election_candidates(election_id);
+create index idx_election_candidates_position on election_candidates(position_id);
+create index idx_election_positions_election on election_positions(election_id);
 create index idx_elections_dates on elections(start_date, end_date);
 
 create or replace view elections_with_status as
@@ -680,7 +696,58 @@ select
     when now() >= e.end_date then 'completed'
     else 'active'
   end as status,
-  (select count(*)::int from election_votes v where v.election_id = e.id) as vote_count
+  (select count(distinct v.user_id)::int from election_votes v where v.election_id = e.id) as vote_count
+from elections e;
+```
+
+### 2.22.1 — Elections positions migration (existing databases)
+
+Run once if you already applied an older §2.22 without `election_positions`:
+
+```sql
+alter table elections
+  add column if not exists require_all_positions boolean not null default true;
+
+create table if not exists election_positions (
+  id uuid primary key default uuid_generate_v4(),
+  election_id uuid not null references elections(id) on delete cascade,
+  title text not null,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (election_id, title)
+);
+
+alter table election_candidates
+  add column if not exists position_id uuid references election_positions(id) on delete cascade;
+
+insert into election_positions (election_id, title, sort_order)
+select election_id, position, row_number() over (partition by election_id order by position) - 1
+from (select distinct election_id, position from election_candidates where position_id is null) d
+on conflict (election_id, title) do nothing;
+
+update election_candidates c
+set position_id = p.id
+from election_positions p
+where c.election_id = p.election_id
+  and c.position = p.title
+  and c.position_id is null;
+
+create index if not exists idx_election_candidates_position on election_candidates(position_id);
+create index if not exists idx_election_positions_election on election_positions(election_id);
+
+-- Must DROP first: CREATE OR REPLACE cannot reorder view columns when e.* gains new columns
+drop view if exists elections_with_status;
+
+create view elections_with_status as
+select
+  e.*,
+  case
+    when now() < e.start_date then 'upcoming'
+    when now() >= e.end_date then 'completed'
+    else 'active'
+  end as status,
+  (select count(distinct v.user_id)::int from election_votes v where v.election_id = e.id) as vote_count
 from elections e;
 ```
 
@@ -1016,6 +1083,7 @@ alter table career_postings enable row level security;
 alter table lecturers enable row level security;
 alter table course_teaching_assignments enable row level security;
 alter table elections enable row level security;
+alter table election_positions enable row level security;
 alter table election_candidates enable row level security;
 alter table election_votes enable row level security;
 

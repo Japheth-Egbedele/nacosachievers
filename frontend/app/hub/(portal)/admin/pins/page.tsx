@@ -59,10 +59,7 @@ export default function AdminPinsPage() {
 
   return (
     <div>
-      <Link href="/hub/dashboard" className="text-sm font-medium text-emerald-600 hover:underline">
-        ← Dashboard
-      </Link>
-      <h1 className="mt-4 text-2xl font-bold text-zinc-900 dark:text-white">Issue onboarding PINs</h1>
+      <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Issue onboarding PINs</h1>
       <p className="mt-2 max-w-xl text-sm text-zinc-600 dark:text-zinc-400">
         Only <strong>super admins</strong> can create PINs. Share matric + PIN once. Students register at{' '}
         <Link href="/hub/register" className="font-medium text-emerald-600 underline">

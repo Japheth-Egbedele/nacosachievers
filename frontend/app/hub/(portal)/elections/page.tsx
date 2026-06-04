@@ -35,7 +35,9 @@ export default function ElectionsPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold">Elections</h1>
-      <p className="mt-2 text-zinc-600">Chapter-wide elections — one vote per election.</p>
+      <p className="mt-2 text-zinc-600">
+        Chapter-wide elections — one contestant per position, one locked ballot per election.
+      </p>
 
       <div className="mt-6 flex gap-2">
         {tabs.map((t) => (

@@ -46,6 +46,48 @@ async function refreshAccessToken(): Promise<string | null> {
   return null;
 }
 
+export type PaginationMeta = {
+  total: number;
+  page: number;
+  limit: number;
+};
+
+type PaginatedApiSuccess<T> = ApiSuccess<T> & { meta: PaginationMeta };
+
+export async function apiFetchPaginated<T>(
+  path: string,
+  options: RequestInit = {},
+  retry = true,
+): Promise<{ items: T[]; meta: PaginationMeta }> {
+  const headers = new Headers(options.headers);
+  if (!headers.has('Content-Type') && options.body && !(options.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
+  }
+  if (accessToken) {
+    headers.set('Authorization', `Bearer ${accessToken}`);
+  }
+
+  const res = await fetch(`${API_BASE}/api/v1${path}`, {
+    ...options,
+    headers,
+    credentials: options.credentials ?? 'include',
+  });
+
+  if (res.status === 401 && retry && path !== '/auth/refresh' && path !== '/auth/login') {
+    const newToken = await refreshAccessToken();
+    if (newToken) return apiFetchPaginated<T>(path, options, false);
+    setAccessToken(null);
+  }
+
+  const json = (await res.json()) as PaginatedApiSuccess<T[]> | ApiError;
+  if (!res.ok || !json.success) {
+    const err = json as ApiError;
+    throw new ApiClientError(err.error ?? 'Request failed', res.status, err.code);
+  }
+  const ok = json as PaginatedApiSuccess<T[]>;
+  return { items: ok.data ?? [], meta: ok.meta };
+}
+
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
