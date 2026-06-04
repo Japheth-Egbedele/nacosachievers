@@ -16,7 +16,7 @@ interface DashboardData {
 }
 
 export default function DashboardPage() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isSuperAdmin } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
 
   useEffect(() => {
@@ -66,12 +66,20 @@ export default function DashboardPage() {
         </ul>
       </section>
 
+      {isSuperAdmin && (
+        <Link
+          href="/hub/admin/pins"
+          className="mt-8 mr-4 inline-block rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900"
+        >
+          Issue onboarding PINs
+        </Link>
+      )}
       {isAdmin && (
         <Link
           href="/hub/admin/elections"
           className="mt-8 inline-block rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-800"
         >
-          Manage elections (Admin)
+          Manage elections
         </Link>
       )}
 

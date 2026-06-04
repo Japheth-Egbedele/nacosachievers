@@ -10,7 +10,7 @@ const memberLinks = [
 ];
 
 export default function HubShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, logout, isAdmin } = useAuth();
+  const { user, loading, logout, isAdmin, isSuperAdmin } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -46,16 +46,28 @@ export default function HubShell({ children }: { children: React.ReactNode }) {
                 {l.label}
               </Link>
             ))}
-            {isAdmin && (
+            {isSuperAdmin && (
               <Link
-                href="/hub/admin/elections"
+                href="/hub/admin/pins"
                 className={
-                  pathname?.startsWith('/hub/admin')
+                  pathname === '/hub/admin/pins'
                     ? 'font-semibold text-emerald-700'
                     : 'text-zinc-600'
                 }
               >
-                Admin
+                PINs
+              </Link>
+            )}
+            {isAdmin && (
+              <Link
+                href="/hub/admin/elections"
+                className={
+                  pathname?.startsWith('/hub/admin/elections')
+                    ? 'font-semibold text-emerald-700'
+                    : 'text-zinc-600'
+                }
+              >
+                Elections
               </Link>
             )}
             <button

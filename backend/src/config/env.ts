@@ -10,7 +10,10 @@ const envSchema = z.object({
   REFRESH_TOKEN_SECRET: z.string().min(32),
   RESEND_API_KEY: z.string().min(1),
   RESEND_FROM_EMAIL: z.string().email(),
-  FRONTEND_URL: z.string().url(),
+  FRONTEND_URL: z
+    .string()
+    .url()
+    .transform((url) => url.replace(/\/+$/, '')),
   CRON_SECRET: z.string().min(16),
 });
 

@@ -17,6 +17,15 @@ Set `NEXT_PUBLIC_API_URL=http://localhost:3000` in `frontend/.env.local`.
 1. Run all SQL in [MANUAL_SETUP.md](./MANUAL_SETUP.md) including **§2.22 Elections**.
 2. Seed super admin (§2.19).
 
+## How student onboarding works
+
+1. **Super admin** issues a PIN (Hub → **PINs**, or `POST /api/v1/admin/pins/generate`) for the student’s **matric number**.
+2. **Student** opens `/hub/register` → enters matric + 8-character PIN → name, email, password.
+3. Student **verifies email** (link from Resend, or `/hub/verify-email` with token).
+4. Student **logs in** at `/hub/login` → can vote in **Elections** when an election is active.
+
+Executives can manage **elections** but **cannot** generate PINs (super_admin only).
+
 ## Test accounts
 
 ### Admin (elections manager)
@@ -25,7 +34,7 @@ Use the seeded `super_admin` from §2.19 — log in at `/hub/login`.
 
 ### Member (voter)
 
-1. Log in as super_admin.
+1. Log in as super_admin → **PINs** in the nav (or dashboard).
 2. Create a PIN:
 
 ```bash
@@ -56,3 +65,19 @@ update users set is_email_verified = true where matric_number = 'CS/2023/001';
 ## Health check
 
 `GET http://localhost:3000/health`
+
+## Production troubleshooting
+
+### CORS: `Access-Control-Allow-Origin` mismatch
+
+Browser shows origin `https://your-app.vercel.app` but header is `https://your-app.vercel.app/` → **trailing slash** on Render `FRONTEND_URL`.
+
+**Fix:** Render → Environment → set `FRONTEND_URL` to `https://nacosachievers.vercel.app` (no `/` at end) → Save → Redeploy.
+
+The API also strips trailing slashes on startup (after you deploy the latest backend).
+
+### Login fails after CORS is fixed
+
+- Super admin from §2.19: use the **email and password you hashed** into `password_hash`, not the Supabase dashboard password.
+- `is_email_verified` must be `true` for that user row.
+- Check Render logs if the API returns 401 vs 500.
