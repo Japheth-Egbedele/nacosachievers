@@ -1,0 +1,21 @@
+# Environment & secrets (never commit)
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# JWT / TLS key material
+*.pem
+private.pem
+public.pem
+
+# OS & logs
+.DS_Store
+Thumbs.db
+*.log
+
+# Dependencies (monorepo roots)
+node_modules/
+
+# Reference-only voting prototype (optional local copy; deploy uses integrated API)
+voting-system/

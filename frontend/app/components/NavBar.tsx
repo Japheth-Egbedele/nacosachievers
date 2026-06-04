@@ -1,9 +1,26 @@
-import React from 'react'
+'use client';
 
-const NavBar = () => {
+import Link from 'next/link';
+
+export default function NavBar() {
   return (
-    <div>NavBar</div>
-  )
+    <header className="sticky top-0 z-50 border-b border-zinc-200/80 bg-white/90 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 md:px-8">
+        <Link href="/" className="text-lg font-bold tracking-tight text-emerald-700 dark:text-emerald-400">
+          NACOS Achievers
+        </Link>
+        <nav className="flex items-center gap-4 text-sm font-medium">
+          <Link href="/" className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white">
+            Home
+          </Link>
+          <Link
+            href="/hub/login"
+            className="rounded-full bg-emerald-600 px-4 py-2 text-white shadow-sm hover:bg-emerald-700"
+          >
+            The Hub
+          </Link>
+        </nav>
+      </div>
+    </header>
+  );
 }
-
-export default NavBar

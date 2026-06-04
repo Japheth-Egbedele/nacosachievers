@@ -3,25 +3,89 @@
 Everything in this file must be done by hand. AI cannot do these steps.
 Complete them in order before running any code.
 
+For local elections testing after deploy, see [DEV_TESTING.md](./DEV_TESTING.md).
+
+---
+
+## Deployment overview (production)
+
+This repo is a **monorepo**. You deploy **two apps** from one GitHub repo:
+
+| App | Host | Root directory | Public URL |
+|-----|------|----------------|------------|
+| **Frontend** (Next.js) | [Vercel](https://vercel.com) | `frontend` | `https://your-app.vercel.app` |
+| **Backend** (Express API) | [Render](https://render.com) | `backend` | `https://your-api.onrender.com` |
+| **Database + storage** | [Supabase](https://supabase.com) | — | (no public site) |
+
+**Recommended order**
+
+1. **Supabase** — project, SQL (Step 2), buckets (Step 3), super admin (§2.19)
+2. **Secrets** — JWT keys (Step 4), `REFRESH_TOKEN_SECRET` + `CRON_SECRET` (Step 7)
+3. **Resend** — API key (Step 5)
+4. **Render** — backend Web Service with `backend` root (Step 6)
+5. **Vercel** — frontend with `frontend` root + `NEXT_PUBLIC_API_URL` = Render URL (Step 7)
+6. **Render env** — set `FRONTEND_URL` to your live Vercel URL (Step 7)
+7. **cron-job.org** — ping Render `/health` every 10 minutes (Step 8) so free tier does not sleep
+8. **RLS** — Step 10 (after first deploy is optional but recommended)
+
+```mermaid
+flowchart LR
+  User[Browser]
+  Vercel[Vercel frontend]
+  Render[Render API]
+  Supabase[Supabase DB Storage]
+  Cron[cron-job.org]
+  User --> Vercel
+  Vercel -->|NEXT_PUBLIC_API_URL| Render
+  Render --> Supabase
+  Cron -->|GET /health every 10m| Render
+```
+
 ---
 
 ## Step 1 — Supabase Project
 
-1. Go to https://supabase.com and create an account
-2. Create a new project — name it `nacos-platform`
-3. Choose a strong database password and save it somewhere secure
-4. Select the region closest to Nigeria (Europe West is typically best latency from NG)
-5. Wait for project to finish provisioning (~2 minutes)
-6. Go to **Project Settings → API**
-   - Copy `Project URL` → this is `SUPABASE_URL`
-   - Copy `service_role` key (secret) → this is `SUPABASE_SERVICE_ROLE_KEY`
-   - **Never expose the service role key to the frontend or commit it to git**
+### 1.1 Create the project
+
+1. Go to https://supabase.com → sign in / create account
+2. **New project**
+   - **Name:** `nacos-platform` (or your chapter name)
+   - **Database password:** strong password → save in a password manager (you need it for direct DB access only; the API uses the service role key)
+   - **Region:** **West EU (Ireland)** or closest to your users (good latency from Nigeria)
+3. Wait until status is **Active** (~2 minutes)
+
+### 1.2 Copy API credentials
+
+1. **Project Settings** (gear) → **API**
+2. Copy and store securely:
+
+| Dashboard field | Your env var | Used by |
+|-----------------|--------------|---------|
+| **Project URL** | `SUPABASE_URL` | Render backend only |
+| **service_role** `secret` | `SUPABASE_SERVICE_ROLE_KEY` | Render backend only |
+
+**Never** put the service role key in Vercel, the browser, or git. The frontend talks only to Render.
+
+### 1.3 SQL Editor (for Step 2)
+
+1. Left sidebar → **SQL Editor** → **New query**
+2. Paste each block from Step 2, run with **Run** (or Ctrl+Enter)
+3. If a block fails, read the error — often means a previous block was skipped or run twice
+
+### 1.4 Auth settings (important)
+
+This platform uses **custom auth on Render** (PIN + JWT), not Supabase Auth for members.
+
+1. **Authentication** → you do **not** need to enable email signup for students in Supabase Auth
+2. Do **not** expose the `anon` key on the frontend for this architecture
 
 ---
 
 ## Step 2 — Supabase Database Tables
 
-Go to **SQL Editor** in Supabase and run each block below **from top to bottom**. Sections **2.20** and **2.21** intentionally appear **before 2.18** so yearbook and career tables exist before indexes reference them.
+Go to **SQL Editor** and run each block below **from top to bottom**.
+
+**Order note:** Run **§2.1–2.21**, then **§2.22 (Elections)**, then **§2.18 (Indexes)**, then **§2.19 (Super admin seed)**. Sections 2.20–2.22 are placed before 2.18 so tables exist before indexes reference them.
 
 ### 2.1 — Enable UUID Extension
 ```sql
@@ -48,6 +112,8 @@ create type employment_type as enum ('full_time', 'part_time', 'adjunct', 'visit
 create type teaching_status as enum ('active', 'on_sabbatical', 'on_leave');
 create type upload_kind as enum ('past_question', 'course_material');
 create type career_posting_status as enum ('draft', 'pending_verification', 'verified', 'rejected', 'expired');
+create type election_kind as enum ('executive', 'custom');
+create type election_scope as enum ('chapter', 'department');
 create type work_mode as enum ('onsite', 'remote', 'hybrid');
 ```
 
@@ -564,6 +630,60 @@ create table career_postings (
 );
 ```
 
+### 2.22 — Elections (integrated voting)
+
+```sql
+create table elections (
+  id uuid primary key default uuid_generate_v4(),
+  title text not null,
+  description text,
+  kind election_kind not null default 'executive',
+  scope election_scope not null default 'chapter',
+  department_id uuid references departments(id),
+  start_date timestamptz not null,
+  end_date timestamptz not null,
+  created_by uuid not null references users(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (end_date > start_date)
+);
+
+create table election_candidates (
+  id uuid primary key default uuid_generate_v4(),
+  election_id uuid not null references elections(id) on delete cascade,
+  name text not null,
+  position text not null,
+  manifesto text,
+  image_url text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table election_votes (
+  id uuid primary key default uuid_generate_v4(),
+  election_id uuid not null references elections(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  candidate_id uuid not null references election_candidates(id) on delete cascade,
+  voted_at timestamptz not null default now(),
+  unique (election_id, user_id, candidate_id)
+);
+
+create index idx_election_votes_election_user on election_votes(election_id, user_id);
+create index idx_election_candidates_election on election_candidates(election_id);
+create index idx_elections_dates on elections(start_date, end_date);
+
+create or replace view elections_with_status as
+select
+  e.*,
+  case
+    when now() < e.start_date then 'upcoming'
+    when now() >= e.end_date then 'completed'
+    else 'active'
+  end as status,
+  (select count(*)::int from election_votes v where v.election_id = e.id) as vote_count
+from elections e;
+```
+
 ### 2.18 — Indexes
 ```sql
 create index idx_users_matric on users(matric_number);
@@ -587,7 +707,7 @@ create index idx_course_assignments_course on course_teaching_assignments(course
 
 Run this after your Node.js project is set up. Generate a bcrypt hash of your chosen password first:
 ```bash
-node -e "const bcrypt = require('bcrypt'); bcrypt.hash('YOUR_PASSWORD_HERE', 12).then(h => console.log(h))"
+node -e "const bcrypt = require('bcrypt'); bcrypt.hash('NaC05@AU0-5har9', 12).then(h => console.log(h))"
 ```
 Then insert:
 ```sql
@@ -596,8 +716,8 @@ insert into users (
   first_name, last_name, is_email_verified, academic_status
 ) values (
   'ADMIN001',
-  'your-email@domain.com',
-  'PASTE_BCRYPT_HASH_HERE',
+  'nacos@achievers.edu.ng',
+  '$2b$12$YFT4oenfsDDyEgNUWRAN.uB.w0nkV442az03t.uaMlBYC.fDaPg4G',
   'super_admin',
   'Super', 'Admin',
   true,
@@ -649,12 +769,20 @@ openssl genrsa -out private.pem 2048
 # Generate public key from private
 openssl rsa -in private.pem -pubout -out public.pem
 
-# Print private key (single line for env var)
+# Print private key (single line for env var) — Linux/macOS
 cat private.pem | base64 -w 0
 
 # Print public key (single line for env var)
 cat public.pem | base64 -w 0
 ```
+
+**Windows (PowerShell)** after generating the `.pem` files:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("private.pem"))
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("public.pem"))
+```
+
 Store both base64 strings as environment variables. Delete the `.pem` files after. Never commit them.
 
 ---
@@ -671,85 +799,202 @@ Store both base64 strings as environment variables. Delete the `.pem` files afte
 
 ---
 
-## Step 6 — Render (Backend Hosting)
+## Step 6 — Render (Backend API)
 
-1. Go to https://render.com and create an account
-2. Connect your GitHub repository
-3. Create a **Web Service**
-   - Environment: Node
-   - Build command: `npm install && npm run build`
-   - Start command: `npm start`
-   - Instance type: Free
-4. Add all environment variables from Step 7 in the Render dashboard
-5. Copy your Render service URL — this is your backend API base URL
-6. Share this URL with the frontend developer as `NEXT_PUBLIC_API_URL`
+Render hosts the Express API. The frontend on Vercel calls this URL.
+
+### 6.1 Create the Web Service
+
+1. https://render.com → sign in with **GitHub**
+2. **New +** → **Web Service**
+3. Connect repository **`nacosachievers`** (or your fork)
+4. Configure:
+
+| Setting | Value |
+|---------|--------|
+| **Name** | `nacos-api` (or similar) |
+| **Region** | Same continent as Supabase when possible |
+| **Branch** | `main` |
+| **Root Directory** | `backend` |
+| **Runtime** | Node |
+| **Build Command** | `npm install --include=dev && npm run build && npm prune --omit=dev` |
+| **Start Command** | `npm start` |
+| **Instance type** | Free |
+
+> **Why `--include=dev`?** Render sets `NODE_ENV=production`, so a plain `npm install` skips `devDependencies` (`typescript`, `@types/*`). The build needs those to compile. `npm prune --omit=dev` removes them after `tsc` so runtime stays lean.
+
+5. **Advanced** (recommended):
+   - **Health Check Path:** `/health`
+   - Render will probe this path; combined with cron-job.org (Step 8) this keeps the service reachable on the free tier.
+
+6. Click **Create Web Service** — first deploy may fail until env vars exist; add them next, then **Manual Deploy → Deploy latest commit**.
+
+**Optional:** repo root includes [`render.yaml`](../render.yaml). On Render you can use **Blueprint** / **Infrastructure as Code** to create the service with `rootDir: backend` and health check pre-filled. Env vars are still manual (Step 8).
+
+### 6.2 Render environment variables
+
+In the service → **Environment** → add every variable from the **Render** table in Step 7.
+
+Use a **placeholder** for `FRONTEND_URL` on first deploy if Vercel is not live yet, e.g. `https://nacosachievers.vercel.app`, then update after Step 7 to the real URL (must match exactly, including `https`, no trailing slash).
+
+### 6.3 Copy the API URL
+
+After a successful deploy:
+
+- Render dashboard shows: `https://nacos-api.onrender.com` (your name will vary)
+- This is **`NEXT_PUBLIC_API_URL`** on Vercel (no `/api/v1` suffix — the app adds that)
+- Smoke test: open `https://YOUR-SERVICE.onrender.com/health` → JSON with `"success":true` and `"database":"connected"`
+
+### 6.4 In-process cron (already in the repo)
+
+The backend registers `node-cron` jobs on startup (`backend/src/jobs/runner.ts`), including a health ping every **10 minutes**. That only runs **while the server is awake**. On Render free tier the process **sleeps after ~15 minutes** with no traffic — so you **still need Step 8 (cron-job.org)** to hit the public URL and wake the service.
 
 ---
 
-## Step 7 — Environment Variables
+## Step 7 — Vercel (Frontend)
 
-Create a `.env` file locally (never commit this). Set the same vars in Render dashboard.
+Vercel hosts the Next.js app (coming-soon landing + Hub + elections).
 
-```env
-NODE_ENV=production
-PORT=3000
+### 7.1 Import the project
 
-# Supabase
-SUPABASE_URL=your_supabase_project_url
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+1. https://vercel.com → sign in with **GitHub**
+2. **Add New…** → **Project**
+3. Import the same repo as Render
+4. Configure:
 
-# JWT (paste base64-encoded PEM content from Step 4)
-JWT_PRIVATE_KEY=base64_encoded_private_key
-JWT_PUBLIC_KEY=base64_encoded_public_key
-REFRESH_TOKEN_SECRET=generate_a_random_64_char_string_here
+| Setting | Value |
+|---------|--------|
+| **Framework Preset** | Next.js (auto-detected) |
+| **Root Directory** | `frontend` → click **Edit**, set to `frontend`, confirm |
+| **Build Command** | `npm run build` (default) |
+| **Output Directory** | leave default (`.next`) |
+| **Install Command** | `npm install` (default) |
 
-# Email
-RESEND_API_KEY=your_resend_api_key
-RESEND_FROM_EMAIL=noreply@yourdomain.com
+5. Do **not** deploy until env vars are set (next section)
 
-# App
-FRONTEND_URL=https://your-vercel-app.vercel.app
-CRON_SECRET=generate_a_random_32_char_string_here
-```
+### 7.2 Vercel environment variables
 
-Generate `CRON_SECRET` and `REFRESH_TOKEN_SECRET`:
+**Project → Settings → Environment Variables**
+
+| Name | Value | Environments |
+|------|--------|----------------|
+| `NEXT_PUBLIC_API_URL` | `https://YOUR-SERVICE.onrender.com` | Production, Preview, Development |
+
+Example: `https://nacos-api.onrender.com` — **no** trailing slash, **no** `/api/v1`.
+
+Redeploy after changing this variable (**Deployments** → ⋮ → **Redeploy**).
+
+### 7.3 Deploy and copy the frontend URL
+
+1. **Deploy**
+2. Production URL example: `https://nacosachievers.vercel.app`
+3. Go back to **Render** → update `FRONTEND_URL` to that exact URL → **Save** → redeploy Render (required for CORS and auth cookies)
+
+### 7.4 Verify CORS + cookies
+
+- Hub login must call the API on Render; browser sends cookies only if `FRONTEND_URL` on Render matches the site origin
+- If login works on localhost but not Vercel, `FRONTEND_URL` is wrong or missing a redeploy on Render
+
+### 7.5 Optional: custom domain (see Step 9)
+
+---
+
+## Step 8 — Environment variables (reference)
+
+### Generate secrets (local machine)
+
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
-Run twice for separate values.
+
+Run **twice** → one value for `CRON_SECRET`, one for `REFRESH_TOKEN_SECRET` (must be different, each ≥ 32 chars).
+
+### Render (`backend` service)
+
+| Variable | Example / notes |
+|----------|------------------|
+| `NODE_ENV` | `production` |
+| `PORT` | `3000` (Render sets `PORT` automatically; keep `3000` or omit if Render injects it) |
+| `SUPABASE_URL` | From Step 1 |
+| `SUPABASE_SERVICE_ROLE_KEY` | From Step 1 — **secret** |
+| `JWT_PRIVATE_KEY` | Base64 from Step 4 — single line, no line breaks |
+| `JWT_PUBLIC_KEY` | Base64 from Step 4 |
+| `REFRESH_TOKEN_SECRET` | 64-char hex from generator |
+| `RESEND_API_KEY` | From Step 5 |
+| `RESEND_FROM_EMAIL` | `onboarding@resend.dev` until domain verified, then `noreply@yourdomain.com` |
+| `FRONTEND_URL` | `https://your-app.vercel.app` — must match Vercel production URL |
+| `CRON_SECRET` | Random hex — optional for external cron headers (future); still required by env schema |
+
+### Vercel (`frontend` project)
+
+| Variable | Example |
+|----------|---------|
+| `NEXT_PUBLIC_API_URL` | `https://your-api.onrender.com` |
+
+### Local development
+
+Copy `backend/.env.example` → `backend/.env` and `frontend/.env.local.example` → `frontend/.env.local`.
+
+| Local app | Port | Env |
+|-----------|------|-----|
+| Backend | `3000` | `FRONTEND_URL=http://localhost:3001` |
+| Frontend | `3001` | `NEXT_PUBLIC_API_URL=http://localhost:3000` |
+
+Run frontend: `cd frontend && npm run dev -- -p 3001`
 
 ---
 
-## Step 8 — cron-job.org (Keep-Alive)
+## Step 9 — cron-job.org (keep Render + DB awake)
 
-1. Go to https://cron-job.org and create a free account
-2. Create two cron jobs:
+Render **free** Web Services spin down after inactivity. External HTTP pings wake them. Your `/health` route also runs a lightweight Supabase query so the database stays exercised when the API is up.
 
-**Job 1 — Render Keep-Alive**
-- URL: `https://your-render-app.onrender.com/health`
-- Schedule: Every 10 minutes
-- Method: GET
+### 9.1 Account
 
-**Job 2 — Supabase Keep-Alive**
-- URL: `https://your-render-app.onrender.com/health` (same endpoint — it does a lightweight Supabase ping internally)
-- Schedule: Every 8 minutes (offset from Job 1)
+1. https://cron-job.org → create free account
+2. Confirm email if required
 
-This prevents both Render sleep and Supabase free tier pausing.
+### 9.2 Cron job — Render keep-alive
+
+1. **Cron jobs** → **Create cron job**
+2. **Title:** `NACOS Render health`
+3. **URL:** `https://YOUR-SERVICE.onrender.com/health`  
+   Replace with your real Render URL from Step 6.3
+4. **Schedule:** every **10** minutes (cron: `*/10 * * * *` if the UI uses crontab syntax)
+5. **Request method:** `GET`
+6. **Expected response:** HTTP 200 (optional in advanced settings)
+7. **Activate** / save
+
+### 9.3 Optional second job (offset)
+
+Some teams add a second job at **8** or **14** minutes past the hour hitting the same URL so pings are not only on the hour boundary. One job every 10 minutes is usually enough.
+
+### 9.4 What not to use Supabase for here
+
+You do **not** need a separate Supabase cron URL. Pinging `/health` on Render triggers `pingDatabase()` inside the API. No Supabase dashboard cron required.
+
+### 9.5 After setup
+
+- First request after sleep may take **30–60 seconds** (Render cold start) — normal on free tier
+- cron-job.org dashboard should show **successful** runs every 10 minutes
+- If jobs fail, check the URL (typo, service suspended, deploy failed)
 
 ---
 
-## Step 9 — Domain (When Ready)
+## Step 10 — Custom domain (when ready)
 
-1. Purchase a `.com.ng` or `.ng` domain (cheapest Nigerian TLD — try Whogohost or SmartWeb Nigeria)
-2. Point DNS to Vercel (for frontend) following Vercel's custom domain guide
-3. Create a subdomain `api.yourdomain.com` pointing to your Render service
-4. Add your domain to Resend for transactional emails (Step 5)
-5. Update `FRONTEND_URL` in Render env vars to your actual domain
-6. Update `NEXT_PUBLIC_API_URL` in Vercel env vars to `https://api.yourdomain.com`
+1. Purchase domain (e.g. `.com.ng` via Whogohost, SmartWeb Nigeria, etc.)
+2. **Vercel** → Project → **Domains** → add `yourdomain.com` / `www` → follow DNS instructions
+3. **Render** → Service → **Settings** → **Custom Domains** → add `api.yourdomain.com` → add DNS CNAME as Render shows
+4. **Resend** → verify domain (Step 5) → set `RESEND_FROM_EMAIL=noreply@yourdomain.com` on Render
+5. Update env:
+   - Render `FRONTEND_URL` → `https://yourdomain.com` (or `https://www.yourdomain.com` — pick one canonical origin)
+   - Vercel `NEXT_PUBLIC_API_URL` → `https://api.yourdomain.com`
+6. Update cron-job.org URL if you use a custom API host (still `/health` on that host)
+7. Redeploy both services
 
 ---
 
-## Step 10 — Supabase Row-Level Security (RLS)
+## Step 11 — Supabase Row-Level Security (RLS)
 
 Enable RLS on all tables to add a second layer of protection beyond your API middleware.
 
@@ -770,6 +1015,9 @@ alter table yearbook_slots enable row level security;
 alter table career_postings enable row level security;
 alter table lecturers enable row level security;
 alter table course_teaching_assignments enable row level security;
+alter table elections enable row level security;
+alter table election_candidates enable row level security;
+alter table election_votes enable row level security;
 
 -- Service role bypasses RLS (your backend uses service role key)
 -- These policies are safety nets for any direct DB access
@@ -782,14 +1030,47 @@ Repeat the service role policy for each table. Your Node.js backend uses the ser
 
 ---
 
-## Checklist Before First Deploy
+## Checklist — production go-live
 
-- [ ] Supabase project created, all SQL run in order (§2.1–2.21, then §2.18 indexes, then §2.19 super admin)
-- [ ] All **five** storage buckets created with correct privacy settings (see Step 3)
-- [ ] JWT key pair generated, stored as base64 in env
-- [ ] Resend account created, API key saved
-- [ ] Render service created, all env vars set
-- [ ] cron-job.org jobs set up
-- [ ] Super admin seeded in DB
-- [ ] `.env` file is in `.gitignore`
-- [ ] No secrets committed to git
+### Supabase
+
+- [ ] Project created (Step 1); `SUPABASE_URL` + **service_role** saved
+- [ ] SQL run in order: §2.1–2.21 → **§2.22 Elections** → §2.18 indexes → §2.19 super admin
+- [ ] All **five** storage buckets (Step 3)
+- [ ] §2.19 super admin inserted; you can log in at `/hub/login`
+- [ ] Step 11 RLS enabled (recommended)
+
+### Secrets & email
+
+- [ ] JWT keys generated (Step 4), pasted into Render as single-line base64
+- [ ] `REFRESH_TOKEN_SECRET` and `CRON_SECRET` generated (Step 8)
+- [ ] Resend API key set; `RESEND_FROM_EMAIL` valid for your stage (Step 5)
+
+### Render (backend)
+
+- [ ] Web Service created with **Root Directory = `backend`**
+- [ ] Build: `npm install --include=dev && npm run build && npm prune --omit=dev` · Start: `npm start`
+- [ ] Health check path: `/health`
+- [ ] All Render env vars from Step 8 table
+- [ ] `GET https://YOUR-SERVICE.onrender.com/health` returns success + database connected
+
+### Vercel (frontend)
+
+- [ ] Project created with **Root Directory = `frontend`**
+- [ ] `NEXT_PUBLIC_API_URL` = Render URL (no `/api/v1`)
+- [ ] Production deploy succeeds
+- [ ] Render `FRONTEND_URL` updated to Vercel URL and Render redeployed
+
+### Keep-alive
+
+- [ ] cron-job.org job hits `/health` every **10** minutes
+- [ ] cron-job.org history shows successful requests
+
+### Voting smoke test
+
+- [ ] [DEV_TESTING.md](./DEV_TESTING.md): admin PIN → register member → create election → vote
+
+### Security
+
+- [ ] `.env` / `.env.local` not committed
+- [ ] Service role key only on Render

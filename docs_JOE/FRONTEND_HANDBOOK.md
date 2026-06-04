@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Last updated** | **2026-05-24** |
+| **Last updated** | **2026-06-04** |
 | **Audience** | Next.js frontend developer |
 | **Status** | Authoritative for routes, API contract, auth, and v1 scope |
 | **Supersedes** | [docs_General/PRD.doc](../docs_General/PRD.doc) for anything added after PRD v1.0 (yearbook, careers, vault lecturers/materials) |
@@ -18,7 +18,7 @@
 | Item | Value |
 |------|--------|
 | Frontend app | `/frontend` (Next.js, App Router) |
-| Backend API | `/backend` (Express — **not built yet** as of last update) |
+| Backend API | `/backend` (Express — phases 0–14) |
 | FE env var | `NEXT_PUBLIC_API_URL` — e.g. `http://localhost:3000` (local) or `https://api.yourdomain.com` |
 | Local CORS | Backend whitelists `FRONTEND_URL` only — coordinate exact origin (include port) with backend dev |
 
@@ -121,7 +121,11 @@ Roles: `guest` (no token), `member`, `alumni`, `executive`, `super_admin`.
 | `/hub/yearbook` | Submit yearbook slot | Member+ (while edition open) |
 | `/hub/careers/submit` | Submit internship | Member+ |
 | `/hub/careers/mine` | My submissions | Member+ |
+| `/hub/elections`, `/hub/elections/:id` | Chapter elections & ballot | Member+ (verified email) |
+| `/hub/admin/elections` | Manage elections & candidates | `executive` or `super_admin` |
 | `/hub/admin/*` | Admin portal | `executive` or `super_admin` |
+
+**Minimal launch:** public `/` is coming-soon; build Hub auth + elections first — see [DEV_TESTING.md](./DEV_TESTING.md).
 
 **Note:** `faculty_staff` (About page) and `lecturers` (Vault course roster) are **different data** — do not merge in UI.
 

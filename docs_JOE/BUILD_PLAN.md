@@ -366,6 +366,29 @@ eslint prettier
 }
 ```
 
+## Phase 14 — Elections (integrated VeriVote)
+
+### Member (auth + verified email)
+- `GET /api/v1/elections/dashboard` — hub dashboard stats + active elections
+- `GET /api/v1/elections` — list chapter-scoped elections (`?status=active|upcoming|completed`)
+- `GET /api/v1/elections/:id` — ballot + results
+- `POST /api/v1/elections/:id/vote` — body `{ candidate_ids: uuid[] }`; one ballot per election; rate limited
+
+### Admin (`executive`+)
+- `GET/POST/PATCH/DELETE /api/v1/admin/elections`
+- `POST /api/v1/admin/elections/:id/candidates`
+- `PATCH/DELETE /api/v1/admin/elections/candidates/:candidateId`
+- `GET /api/v1/admin/elections/stats`
+- `GET /api/v1/admin/elections/:id/results`
+
+### Schema
+- Tables: `elections`, `election_candidates`, `election_votes`; view `elections_with_status`
+- v1: `scope = chapter` (all onboarded members); `election_kind` for future custom polls
+
+See [DEV_TESTING.md](./DEV_TESTING.md) for local smoke test.
+
+---
+
 ### Schema & settings notes (MANUAL_SETUP.md)
 
 When implementing Phase 13, extend Postgres enums and seed **site_settings** as follows:

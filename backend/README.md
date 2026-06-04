@@ -23,6 +23,7 @@ Versioned routes: `/api/v1/...`
 |---------|-------------|
 | `npm run dev` | Development with hot reload (tsx) |
 | `npm run build` | Compile to `dist/` |
+| `npm run build:render` | Same as Render CI (install dev deps, build, prune) |
 | `npm start` | Run production build |
 
 ## Implemented
@@ -43,5 +44,6 @@ Phases **0–13** per [BUILD_PLAN.md](../docs_JOE/BUILD_PLAN.md):
 | 11 | Background jobs (pins, notifications, careers, health ping) |
 | 12 | Yearbook (editions, slots, PDF build) |
 | 13 | Career board (public listings, submissions, admin verify) |
+| 14 | Elections (integrated voting; chapter-scoped v1) |
 
 Frontend integration: [FRONTEND_HANDBOOK.md](../docs_JOE/FRONTEND_HANDBOOK.md)

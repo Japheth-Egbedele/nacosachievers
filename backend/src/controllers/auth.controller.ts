@@ -41,7 +41,7 @@ export async function validatePin(req: Request, res: Response): Promise<void> {
     pin: string;
   };
   const result = await authService.validatePinAndIssueToken(matric_number, pin);
-  sendSuccess(res, result, HTTP_STATUS.OK);
+  sendSuccess(res, { onboarding_token: result.onboardingToken }, HTTP_STATUS.OK);
 }
 
 /**

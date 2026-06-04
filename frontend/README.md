@@ -8,6 +8,18 @@ Check the **Last updated** date at the top before each sprint.
 - API base URL: set `NEXT_PUBLIC_API_URL` in `.env.local`
 - Product/context: [PRD](../docs_General/PRD.doc) (marketing/hub UX); handbook supersedes PRD for newer features (yearbook, careers, vault extensions)
 
+## Minimal launch (elections)
+
+Public `/` is **coming soon**; Hub has auth + elections. See [DEV_TESTING.md](../docs_JOE/DEV_TESTING.md).
+
+Copy `.env.local.example` → `.env.local`. If the API runs on port 3000:
+
+```bash
+npm run dev -- -p 3001
+```
+
+Set backend `FRONTEND_URL=http://localhost:3001` for CORS.
+
 ## Getting Started
 
 First, run the development server:

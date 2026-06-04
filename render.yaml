@@ -1,0 +1,18 @@
+# Optional Render Blueprint — import repo on Render and it pre-fills the backend service.
+# You still must set env vars in the Render dashboard (Step 8 in MANUAL_SETUP.md).
+# Frontend deploys on Vercel separately (Root Directory: frontend).
+
+services:
+  - type: web
+    name: nacos-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install --include=dev && npm run build && npm prune --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
