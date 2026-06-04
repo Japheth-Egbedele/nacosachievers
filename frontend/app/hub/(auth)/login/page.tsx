@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import HubAuthBrand from '@/app/components/HubAuthBrand';
+import PasswordInput from '@/app/components/PasswordInput';
 import { useAuth } from '@/lib/auth-context';
 import { ApiClientError } from '@/lib/api';
 
@@ -56,13 +57,9 @@ export default function HubLoginPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-zinc-700">Password</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-600 dark:bg-zinc-800"
-            />
+            <div className="mt-1">
+              <PasswordInput value={password} onChange={setPassword} required />
+            </div>
           </div>
           <button
             type="submit"

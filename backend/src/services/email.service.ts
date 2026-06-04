@@ -6,6 +6,20 @@ import { logger } from '../config/logger.js';
  * @param email Recipient email
  * @param token Verification token
  */
+function verificationEmailHtml(link: string): string {
+  return `
+    <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;color:#18181b">
+      <p style="color:#047857;font-weight:600">NACOS Achievers Chapter</p>
+      <h1 style="font-size:1.25rem">Verify your email</h1>
+      <p>Welcome to The Hub. Click the button below to activate your account.</p>
+      <p style="margin:1.5rem 0">
+        <a href="${link}" style="display:inline-block;background:#059669;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Verify email</a>
+      </p>
+      <p style="font-size:0.875rem;color:#71717a">If the button does not work, open this link:<br/><a href="${link}" style="color:#059669">${link}</a></p>
+    </div>
+  `;
+}
+
 export async function sendVerificationEmail(email: string, token: string): Promise<void> {
   const link = `${emailEnv.FRONTEND_URL}/hub/verify-email?token=${encodeURIComponent(token)}`;
   try {
@@ -13,7 +27,7 @@ export async function sendVerificationEmail(email: string, token: string): Promi
       from: emailEnv.RESEND_FROM_EMAIL,
       to: email,
       subject: 'Verify your NACOS account',
-      html: `<p>Welcome to NACOS Achievers. <a href="${link}">Verify your email</a> to activate your account.</p>`,
+      html: verificationEmailHtml(link),
     });
   } catch (err) {
     logger.error({ err, email }, 'Failed to send verification email');

@@ -76,6 +76,31 @@ Browser shows origin `https://your-app.vercel.app` but header is `https://your-a
 
 The API also strips trailing slashes on startup (after you deploy the latest backend).
 
+### Email verification
+
+**Backend flow works** when Resend accepts the message: register → email with link → `/hub/verify-email?token=...` auto-verifies.
+
+**Why students may not get mail yet**
+
+| `RESEND_FROM_EMAIL` | Who can receive |
+|---------------------|-----------------|
+| `onboarding@resend.dev` (test) | Usually only the Resend account owner’s inbox — not arbitrary student addresses |
+| `noreply@yourchapter.org` (verified domain) | Any real student email |
+
+**To go live with real students**
+
+1. Buy/use a chapter domain (or subdomain).
+2. Resend → **Domains** → add domain → add DNS records (SPF/DKIM).
+3. Render env: `RESEND_FROM_EMAIL=noreply@yourdomain.com` (must match verified domain).
+4. Redeploy Render.
+
+**Until then (testing)**
+
+- Register with your own email if it matches Resend’s allowed test recipients, **or**
+- Supabase → `users` → set `is_email_verified = true` for test accounts.
+
+**Frontend:** clicking the link in the email should verify automatically (no manual paste). Paste token field remains as fallback.
+
 ### Login fails after CORS is fixed
 
 - Super admin from §2.19: use the **email and password you hashed** into `password_hash`, not the Supabase dashboard password.

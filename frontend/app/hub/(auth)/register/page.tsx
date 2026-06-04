@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import HubAuthBrand from '@/app/components/HubAuthBrand';
+import PasswordInput from '@/app/components/PasswordInput';
 import { apiFetch, ApiClientError } from '@/lib/api';
 
 export default function HubRegisterPage() {
@@ -145,14 +146,15 @@ export default function HubRegisterPage() {
             </div>
             <div>
               <label className="block text-sm font-medium">Password</label>
-              <input
-                type="password"
-                required
-                minLength={8}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 w-full rounded-lg border px-3 py-2 dark:bg-zinc-800"
-              />
+              <div className="mt-1">
+                <PasswordInput
+                  value={password}
+                  onChange={setPassword}
+                  required
+                  minLength={8}
+                  placeholder="At least 8 characters"
+                />
+              </div>
             </div>
             <button
               type="submit"
