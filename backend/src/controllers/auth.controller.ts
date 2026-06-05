@@ -72,8 +72,17 @@ export async function register(req: Request, res: Response): Promise<void> {
  */
 export async function verifyEmail(req: Request, res: Response): Promise<void> {
   const { token } = req.body as { token: string };
-  await authService.verifyEmail(token);
-  sendSuccess(res, null, HTTP_STATUS.OK, SUCCESS_MESSAGES.EMAIL_VERIFIED);
+  const result = await authService.verifyEmail(token);
+  setRefreshCookie(res, result.refreshToken);
+  sendSuccess(
+    res,
+    {
+      access_token: result.accessToken,
+      user: result.user,
+    },
+    HTTP_STATUS.OK,
+    SUCCESS_MESSAGES.EMAIL_VERIFIED,
+  );
 }
 
 /**

@@ -32,7 +32,7 @@ export default function BrandLogo({
         priority={size === 'lg'}
       />
       {label ? (
-        <span className="text-base font-semibold tracking-tight text-emerald-800 dark:text-emerald-400">
+        <span className="text-base font-semibold tracking-tight text-[var(--color-brand)]">
           {label}
         </span>
       ) : null}

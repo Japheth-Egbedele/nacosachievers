@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { SpinnerCenter } from '@/app/components/Spinner';
+import HubAlert from '@/app/hub/components/ui/HubAlert';
+import { HubList, HubListCard, HubListEmpty } from '@/app/hub/components/ui/HubListCard';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
+import { hubLink } from '@/lib/hub-styles';
 import { apiFetchPaginated, apiFetch, ApiClientError } from '@/lib/api';
 
 interface Posting {
@@ -46,43 +49,39 @@ export default function AdminCareersPage() {
   return (
     <div>
       <AdminPageHeader title="Careers" description="Verify or reject member job postings." />
-      {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {error && <HubAlert variant="error" className="mb-4">{error}</HubAlert>}
       {loading ? (
         <SpinnerCenter />
       ) : (
-      <ul className="space-y-3">
-        {items.map((p) => (
-          <li
-            key={p.id}
-            className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-4 py-3 dark:border-zinc-800"
-          >
-            <div>
-              <p className="font-medium">{p.title}</p>
-              <p className="text-xs text-zinc-500">
-                {p.organization} · {p.status}
-              </p>
-            </div>
-            {p.status === 'pending_verification' && (
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => verify(p.id, 'verified')}
-                  className="text-sm text-emerald-600"
-                >
-                  Verify
-                </button>
-                <button
-                  type="button"
-                  onClick={() => verify(p.id, 'rejected')}
-                  className="text-sm text-red-600"
-                >
-                  Reject
-                </button>
+        <HubList>
+          {items.length === 0 && (
+            <HubListEmpty title="No postings" description="Member job listings will appear here." />
+          )}
+          {items.map((p) => (
+            <HubListCard key={p.id}>
+              <div>
+                <p className="font-medium text-[var(--color-hub-text)]">{p.title}</p>
+                <p className="mt-0.5 text-xs text-[var(--color-hub-text-secondary)]">
+                  {p.organization} · {p.status.replace(/_/g, ' ')}
+                </p>
               </div>
-            )}
-          </li>
-        ))}
-      </ul>
+              {p.status === 'pending_verification' && (
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => verify(p.id, 'verified')} className={hubLink}>
+                    Verify
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => verify(p.id, 'rejected')}
+                    className="text-sm font-medium text-red-600 hover:underline"
+                  >
+                    Reject
+                  </button>
+                </div>
+              )}
+            </HubListCard>
+          ))}
+        </HubList>
       )}
     </div>
   );

@@ -131,7 +131,7 @@ Save → **Manual Deploy** on Render.
 
 ### Email verification
 
-**Flow:** register → verification email → `/hub/verify-email?token=…` (auto-verifies from link).
+**Flow:** register → verification email → link opens verify page → **auto sign-in** → `/hub/elections`.
 
 **Stuck without email**
 

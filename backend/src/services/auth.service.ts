@@ -201,10 +201,10 @@ export async function correctPendingEmail(input: {
 }
 
 /**
- * Verifies email with token.
+ * Verifies email with token and starts a session (safe: one-time signed token + DB row).
  * @param token Verification token from email link
  */
-export async function verifyEmail(token: string): Promise<void> {
+export async function verifyEmail(token: string): Promise<LoginResult> {
   const userId = tokenService.verifyActionToken(token, 'email_verify');
   const tokenHash = sha256(token);
 
@@ -224,16 +224,41 @@ export async function verifyEmail(token: string): Promise<void> {
     .update({ used_at: new Date().toISOString() })
     .eq('id', row.id);
 
-  const { data: user } = await getSupabase()
+  const { data: userRow } = await getSupabase()
     .from('users')
-    .update({ is_email_verified: true })
+    .update({
+      is_email_verified: true,
+      last_login_at: new Date().toISOString(),
+    })
     .eq('id', userId)
-    .select('email, display_name')
+    .select(USER_COLUMNS)
     .single();
 
-  if (user?.email) {
-    await emailService.sendWelcomeEmail(user.email, user.display_name ?? 'Member');
+  if (!userRow) {
+    throw new AuthError(ERROR_MESSAGES.INTERNAL, 'INTERNAL_ERROR');
   }
+
+  const record = userRow as UserRecord;
+
+  if (!record.is_active) {
+    throw new AuthError(ERROR_MESSAGES.ACCOUNT_INACTIVE);
+  }
+
+  if (record.email) {
+    await emailService.sendWelcomeEmail(
+      record.email,
+      record.display_name ?? 'Member',
+    );
+  }
+
+  const accessToken = tokenService.signAccessToken(record.id, record.role);
+  const refreshToken = await createRefreshToken(record.id);
+
+  return {
+    accessToken,
+    refreshToken,
+    user: { id: record.id, role: record.role },
+  };
 }
 
 /**

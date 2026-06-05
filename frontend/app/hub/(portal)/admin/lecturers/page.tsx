@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { SpinnerCenter } from '@/app/components/Spinner';
+import HubAlert from '@/app/hub/components/ui/HubAlert';
+import { HubList, HubListCard } from '@/app/hub/components/ui/HubListCard';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
+import { hubBtnPrimary, hubInput } from '@/lib/hub-styles';
 import { apiFetch, ApiClientError } from '@/lib/api';
 
 interface Lecturer {
@@ -57,35 +60,36 @@ export default function AdminLecturersPage() {
   return (
     <div>
       <AdminPageHeader title="Lecturers" description="Lecturers used for vault course assignments." />
-      {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {error && <HubAlert variant="error" className="mb-4">{error}</HubAlert>}
       <form onSubmit={create} className="mb-6 flex gap-2">
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Lecturer name"
-          className="flex-1 rounded-lg border px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className={`${hubInput} flex-1`}
           required
         />
-        <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-2 text-sm text-white">
+        <button type="submit" className={`${hubBtnPrimary} w-auto shrink-0 px-5`}>
           Add
         </button>
       </form>
       {loading ? (
         <SpinnerCenter />
       ) : (
-      <ul className="space-y-2">
-        {list.map((l) => (
-          <li
-            key={l.id}
-            className="flex justify-between rounded-xl border px-4 py-3 dark:border-zinc-800"
-          >
-            <span>{l.name}</span>
-            <button type="button" onClick={() => remove(l.id)} className="text-sm text-red-600">
-              Delete
-            </button>
-          </li>
-        ))}
-      </ul>
+        <HubList>
+          {list.map((l) => (
+            <HubListCard key={l.id}>
+              <span className="text-[var(--color-hub-text)]">{l.name}</span>
+              <button
+                type="button"
+                onClick={() => remove(l.id)}
+                className="text-sm font-medium text-red-600 hover:underline"
+              >
+                Delete
+              </button>
+            </HubListCard>
+          ))}
+        </HubList>
       )}
     </div>
   );

@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
 import { SpinnerCenter } from '@/app/components/Spinner';
+import HubAlert from '@/app/hub/components/ui/HubAlert';
+import { HubList, HubListCard } from '@/app/hub/components/ui/HubListCard';
+import { hubBtnPrimary, hubInput, hubLink } from '@/lib/hub-styles';
 import { apiFetch, ApiClientError } from '@/lib/api';
 
 interface Edition {
@@ -80,7 +83,7 @@ export default function AdminYearbookPage() {
         title="Yearbook"
         description="Editions use session-style titles (Class of 2022/2023). Student matric numbers follow AU23AY4578 format."
       />
-      {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {error && <HubAlert variant="error" className="mb-4">{error}</HubAlert>}
       <form onSubmit={create} className="mb-6 space-y-2">
         <div className="flex flex-wrap gap-2">
           <input
@@ -91,37 +94,32 @@ export default function AdminYearbookPage() {
             }}
             onBlur={() => validateTitle(title)}
             placeholder="Class of 2022/2023"
-            className="min-w-[14rem] flex-1 rounded-lg border px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className={`${hubInput} min-w-[14rem] flex-1`}
             required
           />
-          <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-2 text-sm text-white">
+          <button type="submit" className={`${hubBtnPrimary} w-auto px-5`}>
             Create edition
           </button>
         </div>
-        {titleHint && <p className="text-xs text-amber-700">{titleHint}</p>}
+        {titleHint && (
+          <p className="text-xs text-[var(--color-brand-gold)]">{titleHint}</p>
+        )}
       </form>
-      <ul className="space-y-3">
+      <HubList>
         {editions.map((ed) => (
-          <li
-            key={ed.id}
-            className="flex justify-between rounded-xl border px-4 py-3 dark:border-zinc-800"
-          >
+          <HubListCard key={ed.id}>
             <div>
-              <p className="font-medium">{ed.title}</p>
-              <p className="text-xs text-zinc-500">
+              <p className="font-medium text-[var(--color-hub-text)]">{ed.title}</p>
+              <p className="text-xs text-[var(--color-hub-text-secondary)]">
                 {ed.status} · submissions {ed.submissions_open ? 'open' : 'closed'}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => toggleOpen(ed.id, ed.submissions_open)}
-              className="text-sm text-emerald-600"
-            >
+            <button type="button" onClick={() => toggleOpen(ed.id, ed.submissions_open)} className={hubLink}>
               {ed.submissions_open ? 'Close' : 'Open'} submissions
             </button>
-          </li>
+          </HubListCard>
         ))}
-      </ul>
+      </HubList>
     </div>
   );
 }

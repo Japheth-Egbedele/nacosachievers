@@ -5,6 +5,9 @@ import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import ElectionResultsPanel from '@/app/hub/components/elections/ElectionResultsPanel';
 import { SpinnerCenter } from '@/app/components/Spinner';
+import HubAlert from '@/app/hub/components/ui/HubAlert';
+import { IconChevronLeft } from '@/app/hub/components/ui/HubIcons';
+import { hubBtnPrimary } from '@/lib/hub-styles';
 import type { ElectionPosition, ElectionResultsPayload } from '@/lib/election-types';
 import { apiFetch, ApiClientError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -109,28 +112,32 @@ export default function ElectionDetailPage() {
 
   return (
     <div>
-      <Link href="/hub/elections" className="text-sm text-emerald-600 hover:underline">
-        ← All elections
+      <Link
+        href="/hub/elections"
+        className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 transition hover:text-emerald-900"
+      >
+        <IconChevronLeft />
+        All elections
       </Link>
-      <h1 className="mt-4 text-2xl font-bold">{election.title}</h1>
-      <p className="mt-1 text-sm font-semibold uppercase text-emerald-700">{election.status}</p>
+      <h1 className="hub-display mt-4 text-3xl text-zinc-900 dark:text-white">{election.title}</h1>
+      <p className="mt-2 inline-flex rounded-full bg-emerald-50 px-3 py-0.5 text-xs font-bold uppercase tracking-wide text-emerald-800 ring-1 ring-emerald-200">
+        {election.status === 'active' ? 'Live' : election.status}
+      </p>
 
       {isSuperAdmin && (
-        <p className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900">
+        <HubAlert variant="info" className="mt-6">
           Super admin accounts manage the chapter but cannot vote. Use a student member account to
           cast a ballot.
-        </p>
+        </HubAlert>
       )}
 
       {ballot_locked && !isSuperAdmin && (
-        <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30">
+        <HubAlert variant="success" className="mt-6">
           Your ballot has been submitted and locked. You cannot change your choices.
-        </p>
+        </HubAlert>
       )}
 
-      {error && (
-        <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-      )}
+      {error && <HubAlert variant="error" className="mt-4">{error}</HubAlert>}
 
       {canVote && (
         <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
@@ -196,7 +203,7 @@ export default function ElectionDetailPage() {
             type="button"
             disabled={!canSubmit || busy}
             onClick={() => setConfirmOpen(true)}
-            className="rounded-lg bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className={`${hubBtnPrimary} w-auto px-8`}
           >
             Review & submit ballot
           </button>

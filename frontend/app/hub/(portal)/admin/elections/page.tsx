@@ -29,7 +29,7 @@ export default function AdminElectionsPage() {
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
-    if (!loading && !isAdmin) router.replace('/hub/dashboard');
+    if (!loading && !isAdmin) router.replace('/hub/elections');
   }, [loading, isAdmin, router]);
 
   const load = () => {

@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { SpinnerCenter } from '@/app/components/Spinner';
+import HubAlert from '@/app/hub/components/ui/HubAlert';
+import { HubList, HubListCard } from '@/app/hub/components/ui/HubListCard';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
+import { hubBtnPrimary, hubInput, hubLink } from '@/lib/hub-styles';
 import { apiFetchPaginated, apiFetch, ApiClientError } from '@/lib/api';
 
 interface Order {
@@ -82,13 +85,13 @@ export default function AdminMarketplacePage() {
   return (
     <div>
       <AdminPageHeader title="Marketplace" description="Manage redeemable items and fulfill orders." />
-      {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {error && <HubAlert variant="error" className="mb-4">{error}</HubAlert>}
       <form onSubmit={createItem} className="mb-6 flex flex-wrap gap-2">
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Item name"
-          className="rounded-lg border px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className={`${hubInput} min-w-[10rem] flex-1`}
           required
         />
         <input
@@ -96,10 +99,10 @@ export default function AdminMarketplacePage() {
           value={cost}
           onChange={(e) => setCost(e.target.value)}
           placeholder="Credit cost"
-          className="w-28 rounded-lg border px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className={`${hubInput} w-28`}
           required
         />
-        <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-2 text-sm text-white">
+        <button type="submit" className={`${hubBtnPrimary} w-auto px-5`}>
           Add item
         </button>
       </form>
@@ -107,32 +110,32 @@ export default function AdminMarketplacePage() {
         <SpinnerCenter />
       ) : (
         <>
-      <h2 className="mb-2 text-sm font-semibold text-zinc-700">Items</h2>
-      <ul className="mb-8 space-y-1 text-sm">
-        {items.map((i) => (
-          <li key={i.id}>
-            {i.name} — {i.price_in_credits} credits (stock {i.stock_count ?? '∞'})
-          </li>
-        ))}
-      </ul>
-      <h2 className="mb-2 text-sm font-semibold text-zinc-700">Orders</h2>
-      <ul className="space-y-2">
-        {orders.map((o) => (
-          <li
-            key={o.id}
-            className="flex justify-between rounded-xl border px-4 py-3 text-sm dark:border-zinc-800"
-          >
-            <div>
-              {o.item?.name ?? 'Item'} — {o.status} ({o.credits_spent} cr)
-            </div>
-            {o.status === 'pending' && (
-              <button type="button" onClick={() => fulfill(o.id)} className="text-emerald-600">
-                Fulfill
-              </button>
-            )}
-          </li>
-        ))}
-      </ul>
+          <h2 className="mb-3 text-sm font-semibold text-[var(--color-hub-text)]">Items</h2>
+          <HubList className="mb-8">
+            {items.map((i) => (
+              <HubListCard key={i.id} className="block text-sm">
+                <span className="text-[var(--color-hub-text)]">{i.name}</span>
+                <span className="text-[var(--color-hub-text-secondary)]">
+                  {i.price_in_credits} credits · stock {i.stock_count ?? '∞'}
+                </span>
+              </HubListCard>
+            ))}
+          </HubList>
+          <h2 className="mb-3 text-sm font-semibold text-[var(--color-hub-text)]">Orders</h2>
+          <HubList>
+            {orders.map((o) => (
+              <HubListCard key={o.id} className="text-sm">
+                <div className="text-[var(--color-hub-text)]">
+                  {o.item?.name ?? 'Item'} — {o.status} ({o.credits_spent} cr)
+                </div>
+                {o.status === 'pending' && (
+                  <button type="button" onClick={() => fulfill(o.id)} className={hubLink}>
+                    Fulfill
+                  </button>
+                )}
+              </HubListCard>
+            ))}
+          </HubList>
         </>
       )}
     </div>

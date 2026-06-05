@@ -1,8 +1,9 @@
 import bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { BCRYPT_ROUNDS, PIN_EXPIRY_HOURS } from '../constants/auth.js';
+import { ERROR_MESSAGES } from '../constants/messages.js';
 import { getSupabase } from '../config/supabase.js';
-import { NotFoundError } from '../utils/errors.js';
+import { ValidationError } from '../utils/errors.js';
 import { addHours } from 'date-fns';
 
 const PIN_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -17,6 +18,9 @@ export interface OnboardingPinRow {
   level_of_entry: string | null;
   admission_type: string;
 }
+
+const PIN_SELECT =
+  'id, pin_hash, matric_number, department_id, expires_at, is_used, level_of_entry, admission_type';
 
 /**
  * Generates a random 8-character alphanumeric PIN.
@@ -49,28 +53,39 @@ export async function validatePin(
   matricNumber: string,
   pin: string,
 ): Promise<OnboardingPinRow> {
-  const { data, error } = await getSupabase()
+  const normalized = matricNumber.trim();
+
+  const { data: rows, error } = await getSupabase()
     .from('onboarding_pins')
-    .select(
-      'id, pin_hash, matric_number, department_id, expires_at, is_used, level_of_entry, admission_type',
-    )
-    .eq('matric_number', matricNumber)
-    .eq('is_used', false)
-    .gt('expires_at', new Date().toISOString())
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .select(PIN_SELECT)
+    .eq('matric_number', normalized)
+    .order('created_at', { ascending: false });
 
-  if (error || !data) {
-    throw new NotFoundError('Invalid credentials');
+  if (error || !rows?.length) {
+    throw new ValidationError(ERROR_MESSAGES.MATRIC_NOT_FOUND, 'MATRIC_NOT_FOUND');
   }
 
-  const valid = await bcrypt.compare(pin, data.pin_hash);
+  const now = new Date();
+  const typed = rows as OnboardingPinRow[];
+
+  if (typed.every((row) => row.is_used)) {
+    throw new ValidationError(ERROR_MESSAGES.PIN_ALREADY_USED, 'PIN_ALREADY_USED');
+  }
+
+  const active = typed.find(
+    (row) => !row.is_used && new Date(row.expires_at) > now,
+  );
+
+  if (!active) {
+    throw new ValidationError(ERROR_MESSAGES.PIN_EXPIRED, 'PIN_EXPIRED');
+  }
+
+  const valid = await bcrypt.compare(pin, active.pin_hash);
   if (!valid) {
-    throw new NotFoundError('Invalid credentials');
+    throw new ValidationError(ERROR_MESSAGES.INVALID_PIN, 'INVALID_PIN');
   }
 
-  return data as OnboardingPinRow;
+  return active;
 }
 
 /**
@@ -119,9 +134,7 @@ export async function getActivePinForMatric(
 ): Promise<OnboardingPinRow | null> {
   const { data } = await getSupabase()
     .from('onboarding_pins')
-    .select(
-      'id, pin_hash, matric_number, department_id, expires_at, is_used, level_of_entry, admission_type',
-    )
+    .select(PIN_SELECT)
     .eq('matric_number', matricNumber)
     .eq('is_used', false)
     .gt('expires_at', new Date().toISOString())
@@ -155,7 +168,7 @@ export async function invalidatePin(pinId: string): Promise<void> {
     .maybeSingle();
 
   if (!data || data.is_used) {
-    throw new NotFoundError('PIN not found or already used');
+    throw new ValidationError(ERROR_MESSAGES.PIN_ALREADY_USED, 'PIN_ALREADY_USED');
   }
 
   await getSupabase()

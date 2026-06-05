@@ -6,10 +6,12 @@ export default function AdminPageHeader({
   description?: string;
 }) {
   return (
-    <div className="mb-6">
-      <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">{title}</h1>
+    <div className="mb-8 border-b border-[var(--color-hub-border)] pb-6">
+      <h1 className="hub-display text-2xl text-[var(--color-hub-text)]">{title}</h1>
       {description && (
-        <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">{description}</p>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--color-hub-text-secondary)]">
+          {description}
+        </p>
       )}
     </div>
   );

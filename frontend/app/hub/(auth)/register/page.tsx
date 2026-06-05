@@ -3,9 +3,13 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import HubAuthBrand from '@/app/components/HubAuthBrand';
 import PasswordInput from '@/app/components/PasswordInput';
+import HubAlert from '@/app/hub/components/ui/HubAlert';
+import HubAuthLayout from '@/app/hub/components/ui/HubAuthLayout';
+import HubField, { HubTextInput } from '@/app/hub/components/ui/HubField';
+import { hubBtnGhost, hubBtnPrimary } from '@/lib/hub-styles';
 import { apiFetch, ApiClientError } from '@/lib/api';
+import { pinValidationErrorMessage } from '@/lib/pin-errors';
 
 export default function HubRegisterPage() {
   const router = useRouter();
@@ -36,7 +40,7 @@ export default function HubRegisterPage() {
       setOnboardingToken(data.onboarding_token);
       setStep('details');
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Invalid PIN');
+      setError(pinValidationErrorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -73,105 +77,92 @@ export default function HubRegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <HubAuthBrand />
-        <h1 className="text-2xl font-bold">Join The Hub</h1>
-        <p className="mt-2 text-sm text-zinc-500">
-          Already have an account?{' '}
-          <Link href="/hub/login" className="text-emerald-600 hover:underline">
-            Sign in
-          </Link>
-        </p>
-
-        {step === 'pin' ? (
-          <form onSubmit={validatePin} className="mt-8 space-y-4">
-            {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-            <div>
-              <label className="block text-sm font-medium">Matric number</label>
-              <input
-                required
-                value={matric}
-                onChange={(e) => setMatric(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-600 dark:bg-zinc-800"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Onboarding PIN (8 characters)</label>
-              <input
-                required
-                maxLength={8}
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-600 dark:bg-zinc-800"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={busy}
-              className="w-full rounded-lg bg-emerald-600 py-2.5 font-semibold text-white hover:bg-emerald-700"
-            >
-              {busy ? 'Checking…' : 'Continue'}
-            </button>
-          </form>
+    <HubAuthLayout
+      title={step === 'pin' ? 'Join The Hub' : 'Your details'}
+      subtitle={
+        step === 'pin' ? (
+          <>
+            Step 1 of 2 — verify your chapter PIN.{' '}
+            <Link href="/hub/login" className="font-medium text-emerald-700 hover:underline">
+              Sign in
+            </Link>
+          </>
         ) : (
-          <form onSubmit={register} className="mt-8 space-y-4">
-            {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium">First name</label>
-                <input
-                  required
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  className="mt-1 w-full rounded-lg border px-3 py-2 dark:bg-zinc-800"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium">Last name</label>
-                <input
-                  required
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  className="mt-1 w-full rounded-lg border px-3 py-2 dark:bg-zinc-800"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Email</label>
-              <input
-                type="email"
+          'Step 2 of 2 — create your account.'
+        )
+      }
+    >
+      {step === 'pin' ? (
+        <form onSubmit={validatePin} className="mt-8 space-y-5">
+          {error && <HubAlert variant="error">{error}</HubAlert>}
+          <HubField label="Matric number" hint="Format: AU23AY4578">
+            <HubTextInput
+              required
+              value={matric}
+              onChange={(e) => setMatric(e.target.value)}
+              placeholder="AU23AY4578"
+              autoComplete="off"
+            />
+          </HubField>
+          <HubField label="Onboarding PIN" hint="8-character code from your admin">
+            <HubTextInput
+              required
+              maxLength={8}
+              value={pin}
+              onChange={(e) => setPin(e.target.value.toUpperCase())}
+              className="font-mono tracking-widest uppercase"
+              autoComplete="off"
+            />
+          </HubField>
+          <button type="submit" disabled={busy} className={hubBtnPrimary}>
+            {busy ? 'Checking…' : 'Continue'}
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={register} className="mt-8 space-y-5">
+          {error && <HubAlert variant="error">{error}</HubAlert>}
+          <div className="grid grid-cols-2 gap-3">
+            <HubField label="First name">
+              <HubTextInput
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 w-full rounded-lg border px-3 py-2 dark:bg-zinc-800"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium">Password</label>
-              <div className="mt-1">
-                <PasswordInput
-                  value={password}
-                  onChange={setPassword}
-                  required
-                  minLength={8}
-                  placeholder="At least 8 characters"
-                />
-              </div>
-            </div>
-            <button
-              type="submit"
-              disabled={busy}
-              className="w-full rounded-lg bg-emerald-600 py-2.5 font-semibold text-white"
-            >
-              {busy ? 'Creating account…' : 'Create account'}
-            </button>
-            <button type="button" onClick={() => setStep('pin')} className="w-full text-sm text-zinc-500">
-              ← Back to PIN
-            </button>
-          </form>
-        )}
-      </div>
-    </div>
+            </HubField>
+            <HubField label="Last name">
+              <HubTextInput
+                required
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+              />
+            </HubField>
+          </div>
+          <HubField label="Email">
+            <HubTextInput
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </HubField>
+          <HubField label="Password">
+            <PasswordInput
+              value={password}
+              onChange={setPassword}
+              required
+              minLength={8}
+              placeholder="At least 8 characters"
+              className="rounded-xl border-[#e8e6e1] py-2.5 pl-3.5"
+            />
+          </HubField>
+          <button type="submit" disabled={busy} className={hubBtnPrimary}>
+            {busy ? 'Creating account…' : 'Create account'}
+          </button>
+          <button type="button" onClick={() => setStep('pin')} className={`${hubBtnGhost} w-full`}>
+            ← Back to PIN
+          </button>
+        </form>
+      )}
+    </HubAuthLayout>
   );
 }

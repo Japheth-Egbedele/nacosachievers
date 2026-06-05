@@ -3,14 +3,21 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
-import HubAuthBrand from '@/app/components/HubAuthBrand';
 import PasswordInput from '@/app/components/PasswordInput';
 import Spinner, { SpinnerCenter } from '@/app/components/Spinner';
-import { apiFetch, ApiClientError } from '@/lib/api';
+import HubAlert from '@/app/hub/components/ui/HubAlert';
+import HubAuthLayout from '@/app/hub/components/ui/HubAuthLayout';
+import HubField, { HubTextInput } from '@/app/hub/components/ui/HubField';
+import { hubBtnPrimary, hubBtnSecondary } from '@/lib/hub-styles';
+import { apiFetch, ApiClientError, setAccessToken } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
+
+type RecoveryPanel = 'none' | 'wrongEmail' | 'pasteToken';
 
 function VerifyEmailForm() {
   const params = useSearchParams();
   const router = useRouter();
+  const { refreshUser } = useAuth();
   const tokenFromUrl = params.get('token') ?? '';
   const justRegistered = params.get('registered') === '1';
   const unverified = params.get('unverified') === '1';
@@ -22,9 +29,11 @@ function VerifyEmailForm() {
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [updatingEmail, setUpdatingEmail] = useState(false);
   const [autoStarted, setAutoStarted] = useState(false);
-  const [showRecovery] = useState(true);
+  const [recoveryPanel, setRecoveryPanel] = useState<RecoveryPanel>('none');
 
   useEffect(() => {
     if (emailParam) setEmail(emailParam);
@@ -33,21 +42,23 @@ function VerifyEmailForm() {
   const verifyToken = useCallback(async (value: string) => {
     if (!value.trim()) return;
     setError('');
-    setBusy(true);
+    setVerifying(true);
     try {
-      await apiFetch(
+      const data = await apiFetch<{ access_token: string }>(
         '/auth/verify-email',
         { method: 'POST', body: JSON.stringify({ token: value.trim() }) },
         false,
       );
-      setMessage('Email verified! Redirecting to sign in…');
-      setTimeout(() => router.push('/hub/login'), 1500);
+      setAccessToken(data.access_token);
+      await refreshUser();
+      setMessage('You’re in! Opening elections…');
+      router.replace('/hub/elections');
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Verification failed');
     } finally {
-      setBusy(false);
+      setVerifying(false);
     }
-  }, [router]);
+  }, [router, refreshUser]);
 
   useEffect(() => {
     if (tokenFromUrl && !autoStarted) {
@@ -59,20 +70,15 @@ function VerifyEmailForm() {
         'We sent a verification link to your email. Check your inbox and spam folder — the link expires in 24 hours.',
       );
     } else if (unverified && !message) {
-      setMessage('Your account is not verified yet. Resend the link or update your email below.');
+      setMessage('Your account is not verified yet. Resend the link below.');
     }
   }, [tokenFromUrl, justRegistered, unverified, autoStarted, verifyToken, message]);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    await verifyToken(token);
-  }
 
   async function handleResend(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setMessage('');
-    setBusy(true);
+    setSending(true);
     try {
       await apiFetch(
         '/auth/resend-verification',
@@ -84,7 +90,7 @@ function VerifyEmailForm() {
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Could not resend email');
     } finally {
-      setBusy(false);
+      setSending(false);
     }
   }
 
@@ -92,7 +98,7 @@ function VerifyEmailForm() {
     e.preventDefault();
     setError('');
     setMessage('');
-    setBusy(true);
+    setUpdatingEmail(true);
     try {
       const result = await apiFetch<{ email: string }>(
         '/auth/correct-pending-email',
@@ -109,123 +115,138 @@ function VerifyEmailForm() {
       setEmail(result.email);
       setNewEmail('');
       setPassword('');
-      setMessage(`Email updated to ${result.email}. Check your inbox for the new verification link.`);
+      setRecoveryPanel('none');
+      setMessage(`Email updated to ${result.email}. Check your inbox for the new link.`);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Could not update email');
     } finally {
-      setBusy(false);
+      setUpdatingEmail(false);
     }
   }
 
+  const busy = verifying || sending || updatingEmail;
+
   return (
-    <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-8 dark:border-zinc-800 dark:bg-zinc-900">
-      <HubAuthBrand />
-      <h1 className="text-2xl font-bold">Verify your email</h1>
+    <HubAuthLayout title="Verify your email">
+      <div className="mt-6 space-y-5">
+        {message && <HubAlert variant="success">{message}</HubAlert>}
+        {error && <HubAlert variant="error">{error}</HubAlert>}
 
-      {message && <p className="mt-4 text-sm font-medium text-emerald-700 dark:text-emerald-400">{message}</p>}
-      {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
-
-      {busy && tokenFromUrl ? (
-        <div className="mt-6 flex items-center gap-3">
-          <Spinner className="h-6 w-6" />
-          <p className="text-sm text-zinc-500">Verifying your link…</p>
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Or paste verification token
-            </label>
-            <input
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="From email link"
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 font-mono text-sm dark:border-zinc-600 dark:bg-zinc-800"
-            />
+        {verifying && tokenFromUrl ? (
+          <div className="flex items-center gap-3 rounded-xl bg-[#f5f4f0] px-4 py-4">
+            <Spinner className="h-6 w-6" />
+            <p className="text-sm text-zinc-600">Verifying your link…</p>
           </div>
-          <button
-            type="submit"
-            disabled={busy || !token.trim()}
-            className="w-full rounded-lg bg-emerald-600 py-2.5 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-          >
-            {busy ? 'Verifying…' : 'Verify'}
-          </button>
-        </form>
-      )}
-
-      {showRecovery && (
-        <div className="mt-8 space-y-6 border-t border-zinc-100 pt-6 dark:border-zinc-800">
-          <div>
-            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-              Didn&apos;t get the email?
-            </h2>
-            <p className="mt-1 text-xs text-zinc-500">
-              Enter the email and password you registered with, then resend the link.
-            </p>
-            <form onSubmit={handleResend} className="mt-3 space-y-3">
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Registered email"
-                className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800"
-              />
-              <PasswordInput
-                value={password}
-                onChange={setPassword}
-                required
-                placeholder="Your password"
-              />
-              <button
-                type="submit"
-                disabled={busy}
-                className="w-full rounded-lg border border-emerald-600 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-60 dark:text-emerald-400"
-              >
-                {busy ? 'Sending…' : 'Resend verification email'}
+        ) : (
+          <>
+            <form onSubmit={handleResend} className="space-y-4">
+              <p className="text-sm text-zinc-600">
+                Enter the email and password you registered with, then resend the link.
+              </p>
+              <HubField label="Registered email">
+                <HubTextInput
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </HubField>
+              <HubField label="Password">
+                <PasswordInput
+                  value={password}
+                  onChange={setPassword}
+                  required
+                  placeholder="Your password"
+                  className="rounded-xl border-[#e8e6e1] py-2.5 pl-3.5"
+                />
+              </HubField>
+              <button type="submit" disabled={busy} className={hubBtnPrimary}>
+                {sending ? 'Sending…' : 'Resend verification email'}
               </button>
             </form>
-          </div>
 
-          <div>
-            <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Wrong email?</h2>
-            <p className="mt-1 text-xs text-zinc-500">
-              Update to the correct address before verifying (account must not be verified yet).
-            </p>
-            <form onSubmit={handleCorrectEmail} className="mt-3 space-y-3">
-              <input
-                type="email"
-                required
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                placeholder="Correct email address"
-                className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800"
-              />
+            <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-[#e8e6e1] pt-4 text-sm">
               <button
-                type="submit"
-                disabled={busy || !newEmail.trim()}
-                className="w-full rounded-lg border border-zinc-300 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-600 dark:text-zinc-300"
+                type="button"
+                onClick={() =>
+                  setRecoveryPanel((p) => (p === 'wrongEmail' ? 'none' : 'wrongEmail'))
+                }
+                className="font-medium text-emerald-700 hover:underline"
               >
-                {busy ? 'Updating…' : 'Update email and resend'}
+                Wrong email address?
               </button>
-            </form>
-          </div>
-        </div>
-      )}
+              <button
+                type="button"
+                onClick={() =>
+                  setRecoveryPanel((p) => (p === 'pasteToken' ? 'none' : 'pasteToken'))
+                }
+                className="font-medium text-zinc-600 hover:text-emerald-700 hover:underline"
+              >
+                Paste token instead
+              </button>
+              <Link href="/hub/login" className="font-medium text-zinc-600 hover:text-emerald-700">
+                Already verified? Sign in
+              </Link>
+            </div>
 
-      <Link href="/hub/login" className="mt-6 block text-center text-sm font-medium text-emerald-600 hover:underline">
-        Go to sign in
-      </Link>
-    </div>
+            {recoveryPanel === 'wrongEmail' && (
+              <form onSubmit={handleCorrectEmail} className="space-y-4 rounded-xl bg-[#f5f4f0] p-4">
+                <p className="text-xs text-zinc-600">
+                  Update to the correct address before verifying.
+                </p>
+                <HubField label="Correct email">
+                  <HubTextInput
+                    type="email"
+                    required
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="you@example.com"
+                  />
+                </HubField>
+                <button type="submit" disabled={busy || !newEmail.trim()} className={hubBtnSecondary}>
+                  {updatingEmail ? 'Updating…' : 'Update email and resend'}
+                </button>
+              </form>
+            )}
+
+            {recoveryPanel === 'pasteToken' && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void verifyToken(token);
+                }}
+                className="space-y-4 rounded-xl bg-[#f5f4f0] p-4"
+              >
+                <HubField label="Verification token">
+                  <HubTextInput
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
+                    placeholder="From email link"
+                    className="font-mono text-xs"
+                  />
+                </HubField>
+                <button type="submit" disabled={verifying || !token.trim()} className={hubBtnSecondary}>
+                  {verifying ? 'Verifying…' : 'Verify token'}
+                </button>
+              </form>
+            )}
+          </>
+        )}
+      </div>
+    </HubAuthLayout>
   );
 }
 
 export default function VerifyEmailPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-12">
-      <Suspense fallback={<SpinnerCenter />}>
-        <VerifyEmailForm />
-      </Suspense>
-    </div>
+    <Suspense
+      fallback={
+        <div className="hub-auth-bg flex min-h-screen items-center justify-center">
+          <SpinnerCenter />
+        </div>
+      }
+    >
+      <VerifyEmailForm />
+    </Suspense>
   );
 }

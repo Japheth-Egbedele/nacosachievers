@@ -21,7 +21,7 @@ export default function AdminPinsPage() {
   } | null>(null);
 
   useEffect(() => {
-    if (!loading && !isSuperAdmin) router.replace('/hub/dashboard');
+    if (!loading && !isSuperAdmin) router.replace('/hub/elections');
   }, [loading, isSuperAdmin, router]);
 
   async function handleGenerate(e: React.FormEvent) {

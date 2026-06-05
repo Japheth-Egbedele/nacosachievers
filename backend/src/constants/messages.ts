@@ -5,7 +5,11 @@ export const ERROR_MESSAGES = {
   NOT_FOUND: 'Resource not found',
   VALIDATION_FAILED: 'Validation failed',
   INTERNAL: 'Something went wrong',
-  INVALID_PIN: 'Invalid credentials',
+  MATRIC_NOT_FOUND:
+    'No onboarding PIN found for this matric number. Contact your chapter admin.',
+  PIN_ALREADY_USED: 'This PIN has already been used. Ask admin for a new PIN.',
+  PIN_EXPIRED: 'Your PIN has expired. Ask admin for a new PIN.',
+  INVALID_PIN: 'Incorrect PIN. Double-check the code from your admin.',
   EMAIL_NOT_VERIFIED: 'Email verification required',
   ACCOUNT_INACTIVE: 'Account is inactive',
 } as const;

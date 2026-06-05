@@ -1,3 +1,140 @@
 @import "tailwindcss";
 
+@theme inline {
+  --font-display: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  /* NACOS logo greens — used sparingly for accents, CTAs, active nav */
+  --color-brand: #047857;
+  --color-brand-hover: #065f46;
+  --color-brand-soft: #ecfdf5;
+  --color-brand-ring: rgba(4, 120, 87, 0.2);
+  --color-brand-gold: #b45309;
+  --color-hub-bg: #f5f4f0;
+  --color-hub-surface: #ffffff;
+  --color-hub-surface-muted: #fafaf8;
+  --color-hub-border: #e8e6e1;
+  --color-hub-muted: #6b7280;
+  --color-hub-text: #18181b;
+  --color-hub-text-secondary: #52525b;
+}
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-brand: #34d399;
+    --color-brand-hover: #6ee7b7;
+    --color-brand-soft: rgba(16, 185, 129, 0.1);
+    --color-brand-ring: rgba(52, 211, 153, 0.25);
+    --color-brand-gold: #fbbf24;
+    --color-hub-bg: #0c0f0e;
+    --color-hub-surface: #141816;
+    --color-hub-surface-muted: #1a1f1c;
+    --color-hub-border: #27272a;
+    --color-hub-muted: #a1a1aa;
+    --color-hub-text: #fafafa;
+    --color-hub-text-secondary: #a1a1aa;
+  }
+
+  .hub-nav-active {
+    background: linear-gradient(
+      90deg,
+      rgba(52, 211, 153, 0.14) 0%,
+      rgba(52, 211, 153, 0.04) 100%
+    );
+    color: #6ee7b7;
+  }
+
+  .hub-auth-bg {
+    background:
+      radial-gradient(ellipse 80% 60% at 50% -10%, rgba(52, 211, 153, 0.06), transparent),
+      var(--color-hub-bg);
+  }
+
+  .hub-card-hover:hover {
+    border-color: rgba(52, 211, 153, 0.3);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  }
+}
+
+body {
+  background-color: var(--color-hub-bg);
+  color: var(--color-hub-text);
+}
+
+.hub-display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+.hub-auth-bg {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(4, 120, 87, 0.07), transparent),
+    var(--color-hub-bg);
+}
+
+.hub-nav-active {
+  background: linear-gradient(90deg, rgba(4, 120, 87, 0.12) 0%, rgba(4, 120, 87, 0.04) 100%);
+  color: var(--color-brand-hover);
+}
+
+.hub-card {
+  border: 1px solid var(--color-hub-border);
+  background: var(--color-hub-surface);
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.hub-card-muted {
+  border: 1px solid var(--color-hub-border);
+  background: var(--color-hub-surface-muted);
+  border-radius: 1rem;
+}
+
+.hub-card-hover {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.hub-card-hover:hover {
+  border-color: rgba(4, 120, 87, 0.28);
+  box-shadow: 0 4px 14px rgba(4, 120, 87, 0.07);
+}
+
+.hub-link {
+  color: var(--color-brand);
+  font-weight: 500;
+}
+
+.hub-link:hover {
+  color: var(--color-brand-hover);
+  text-decoration: underline;
+}
+
+.hub-btn-primary {
+  background-color: var(--color-brand);
+  color: white;
+}
+
+.hub-btn-primary:hover:not(:disabled) {
+  background-color: var(--color-brand-hover);
+}
+
+.hub-btn-primary:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+.hub-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.hub-input {
+  border: 1px solid var(--color-hub-border);
+  background: var(--color-hub-surface);
+  color: var(--color-hub-text);
+}
+
+.hub-input:focus {
+  border-color: var(--color-brand);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-brand-ring);
+}
