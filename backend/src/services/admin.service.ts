@@ -99,7 +99,7 @@ export async function getAnalytics() {
     getSupabase()
       .from('users')
       .select('id', { count: 'exact', head: true })
-      .in('role', ['member', 'alumni', 'executive']),
+      .in('role', ['member', 'alumni', 'executive', 'staff']),
     getSupabase()
       .from('vault_uploads')
       .select('id', { count: 'exact', head: true })

@@ -13,6 +13,7 @@ interface Member {
   matric_number: string;
   email: string;
   role: string;
+  level?: string | null;
   first_name: string;
   last_name: string;
   is_email_verified: boolean;
@@ -92,7 +93,19 @@ export default function AdminMembersPage() {
                   {m.first_name} {m.last_name}
                   <div className="text-xs text-[var(--color-hub-text-secondary)]">{m.email}</div>
                 </td>
-                <td className="px-4 py-3">{m.role}</td>
+                <td className="px-4 py-3">
+                  <span className="capitalize">{m.role.replace('_', ' ')}</span>
+                  {m.role === 'staff' && (
+                    <span className="ml-1.5 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800">
+                      Staff
+                    </span>
+                  )}
+                  {m.level && m.level !== 'staff' && (
+                    <span className="ml-1.5 text-xs text-[var(--color-hub-text-secondary)]">
+                      L{m.level}
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-3">{m.is_email_verified ? 'Yes' : 'No'}</td>
                 <td className="px-4 py-3">
                   <button

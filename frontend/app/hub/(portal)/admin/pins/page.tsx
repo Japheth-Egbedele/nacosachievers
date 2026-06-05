@@ -18,6 +18,7 @@ export default function AdminPinsPage() {
     matric_number: string;
     pin: string;
     id: string;
+    level_of_entry?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -41,7 +42,7 @@ export default function AdminPinsPage() {
           ...(level ? { level_of_entry: level } : {}),
         }),
       });
-      setIssued(data);
+      setIssued({ ...data, level_of_entry: level || undefined });
       setMatric('');
       setLevel('');
     } catch (err) {
@@ -52,7 +53,7 @@ export default function AdminPinsPage() {
   }
 
   const copyAllText = issued
-    ? `NACOS Hub onboarding\nMatric: ${issued.matric_number}\nPIN: ${issued.pin}\nRegister: ${typeof window !== 'undefined' ? window.location.origin : ''}/hub/register`
+    ? `NACOS Hub onboarding\n${issued.level_of_entry === 'staff' ? 'Staff ID' : 'Matric'}: ${issued.matric_number}\nPIN: ${issued.pin}\nRegister: ${typeof window !== 'undefined' ? window.location.origin : ''}/hub/register`
     : '';
 
   if (loading || !isSuperAdmin) return null;
@@ -61,7 +62,9 @@ export default function AdminPinsPage() {
     <div>
       <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Issue onboarding PINs</h1>
       <p className="mt-2 max-w-xl text-sm text-zinc-600 dark:text-zinc-400">
-        Only <strong>super admins</strong> can create PINs. Share matric + PIN once. Students register at{' '}
+        Only <strong>super admins</strong> can create PINs. Share matric or staff ID + PIN once.
+        Students register as <strong>member</strong>; choose level <strong>Staff</strong> for lecturers
+        and department staff. Register at{' '}
         <Link href="/hub/register" className="font-medium text-emerald-600 underline">
           /hub/register
         </Link>
@@ -74,12 +77,12 @@ export default function AdminPinsPage() {
       >
         {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         <div>
-          <label className="block text-sm font-medium">Matric number</label>
+          <label className="block text-sm font-medium">Matric or staff ID</label>
           <input
             required
             value={matric}
             onChange={(e) => setMatric(e.target.value)}
-            placeholder="e.g. CS/2023/001"
+            placeholder="e.g. AU23AY4578"
             className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-zinc-600 dark:bg-zinc-800"
           />
         </div>
@@ -90,11 +93,12 @@ export default function AdminPinsPage() {
             onChange={(e) => setLevel(e.target.value)}
             className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-600 dark:bg-zinc-800"
           >
-            <option value="">— default —</option>
+            <option value="">— student (member) —</option>
             <option value="100">100</option>
             <option value="200">200</option>
             <option value="300">300</option>
             <option value="400">400</option>
+            <option value="staff">Staff (lecturer / department staff)</option>
           </select>
         </div>
         <button
@@ -115,7 +119,9 @@ export default function AdminPinsPage() {
           <div className="mt-4 rounded-lg border border-emerald-200 bg-white/80 p-4 dark:border-emerald-800 dark:bg-zinc-950/50">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-emerald-700/80">Matric</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-emerald-700/80">
+                  {issued.level_of_entry === 'staff' ? 'Staff ID' : 'Matric'}
+                </p>
                 <p className="font-mono text-lg font-bold text-emerald-900 dark:text-emerald-100">
                   {issued.matric_number}
                 </p>

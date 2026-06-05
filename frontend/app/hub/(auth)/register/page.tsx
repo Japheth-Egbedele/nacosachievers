@@ -82,7 +82,7 @@ export default function HubRegisterPage() {
       subtitle={
         step === 'pin' ? (
           <>
-            Step 1 of 2 — verify your chapter PIN.{' '}
+            Step 1 of 2 — verify your chapter PIN. Students and department staff use the same flow.{' '}
             <Link href="/hub/login" className="font-medium text-emerald-700 hover:underline">
               Sign in
             </Link>
@@ -95,7 +95,7 @@ export default function HubRegisterPage() {
       {step === 'pin' ? (
         <form onSubmit={validatePin} className="mt-8 space-y-5">
           {error && <HubAlert variant="error">{error}</HubAlert>}
-          <HubField label="Matric number" hint="Format: AU23AY4578">
+          <HubField label="Matric or staff ID" hint="Same ID format for students and department staff">
             <HubTextInput
               required
               value={matric}

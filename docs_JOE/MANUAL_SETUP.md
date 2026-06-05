@@ -94,7 +94,7 @@ create extension if not exists "uuid-ossp";
 
 ### 2.2 — Enums
 ```sql
-create type user_role as enum ('super_admin', 'executive', 'member', 'alumni', 'guest');
+create type user_role as enum ('super_admin', 'executive', 'member', 'alumni', 'staff', 'guest');
 create type user_level as enum ('100', '200', '300', '400', 'staff');
 create type academic_status as enum ('active', 'alumni', 'suspended', 'transferred_out');
 create type admission_type as enum ('regular', 'transfer', 'readmission');
@@ -774,7 +774,7 @@ create index idx_course_assignments_course on course_teaching_assignments(course
 
 Run this after your Node.js project is set up. Generate a bcrypt hash of your chosen password first:
 ```bash
-node -e "const bcrypt = require('bcrypt'); bcrypt.hash('NaC05@AU0-5har9', 12).then(h => console.log(h))"
+node -e "const bcrypt = require('bcrypt'); bcrypt.hash('xxx', 12).then(h => console.log(h))"
 ```
 Then insert:
 ```sql
@@ -791,6 +791,16 @@ insert into users (
   'active'
 );
 ```
+
+### 2.19.1 — Staff role (existing deployments)
+
+If your database was created before the `staff` user role existed, run once in **Supabase → SQL Editor**:
+
+```sql
+ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'staff';
+```
+
+**Staff hub onboarding:** Super admin issues a PIN with **level of entry = Staff** and the lecturer’s **staff ID** (same format as matric, stored in `matric_number`). Registration at `/hub/register` creates a `users` row with `role = staff`. This is separate from the vault **`lecturers`** table (course roster) and CMS **`faculty_staff`** table (About page).
 
 ---
 

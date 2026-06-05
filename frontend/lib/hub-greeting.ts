@@ -30,6 +30,13 @@ export function getHubGreeting(user: AuthUser | null): {
     };
   }
 
+  if (user.role === 'staff') {
+    return {
+      heading: firstName ? `Welcome, ${firstName}` : 'Welcome',
+      subtext: matric ? `Staff · ${matric}` : 'Staff',
+    };
+  }
+
   return {
     heading: firstName ? `Welcome, ${firstName}` : 'Welcome',
     subtext: matric ? matric : undefined,

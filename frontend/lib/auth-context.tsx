@@ -3,7 +3,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { apiFetch, loadStoredToken, setAccessToken } from './api';
 
-export type UserRole = 'member' | 'alumni' | 'executive' | 'super_admin' | 'guest';
+export type UserRole = 'member' | 'alumni' | 'executive' | 'staff' | 'super_admin' | 'guest';
 
 export interface AuthUser {
   id: string;

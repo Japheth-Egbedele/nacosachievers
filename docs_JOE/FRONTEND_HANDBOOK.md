@@ -68,7 +68,7 @@ All list endpoints: `?page=1&limit=20` (default **20**, max **100**).
 { sub: userId, role: UserRole, iat, exp }
 ```
 
-Roles: `guest` (no token), `member`, `alumni`, `executive`, `super_admin`.
+Roles: `guest` (no token), `member`, `alumni`, `staff`, `executive`, `super_admin`.
 
 ### File handling
 
@@ -244,7 +244,7 @@ Highlights for FE admin UI:
 Use backend string values exactly in API calls.
 
 ### Roles
-`super_admin` · `executive` · `member` · `alumni` · `guest`
+`super_admin` · `executive` · `member` · `alumni` · `staff` · `guest`
 
 ### Vault
 - **upload_status:** `pending` · `approved` · `rejected`

@@ -96,7 +96,7 @@ async function assertUserCanVote(userId: string): Promise<void> {
 }
 
 function isVoterRole(role: string): boolean {
-  return role === 'member' || role === 'alumni' || role === 'executive';
+  return role === 'member' || role === 'alumni' || role === 'executive' || role === 'staff';
 }
 
 async function fetchPositions(electionId: string): Promise<PositionRow[]> {
@@ -128,7 +128,7 @@ async function countEligibleVoters(): Promise<number> {
     .select('id', { count: 'exact', head: true })
     .eq('is_active', true)
     .eq('is_email_verified', true)
-    .in('role', ['member', 'alumni', 'executive']);
+    .in('role', ['member', 'alumni', 'executive', 'staff']);
 
   if (error) throw error;
   return count ?? 0;
@@ -733,7 +733,7 @@ export async function getAdminStats() {
   const { count: totalUsers } = await getSupabase()
     .from('users')
     .select('*', { count: 'exact', head: true })
-    .in('role', ['member', 'alumni', 'executive']);
+    .in('role', ['member', 'alumni', 'executive', 'staff']);
 
   const { data: elections } = await getSupabase()
     .from('elections_with_status')

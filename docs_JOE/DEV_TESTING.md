@@ -26,6 +26,30 @@ Set `NEXT_PUBLIC_API_URL=http://localhost:3000` in `frontend/.env.local`.
 
 Executives can manage **elections** but **cannot** generate PINs (super_admin only).
 
+## Staff / lecturer onboarding
+
+Department staff and lecturers use the **same PIN flow** as students but register with `role = staff`.
+
+1. Run **MANUAL_SETUP §2.19.1** in Supabase if the `staff` enum value is not yet added.
+2. Super admin → **PINs** → enter **staff ID** (same format as matric) → set level to **Staff (lecturer / department staff)** → generate PIN.
+3. Staff opens `/hub/register` → staff ID + PIN → email, password → verify email → can vote in elections.
+4. Staff do **not** see the Admin nav (unless promoted to executive separately).
+
+**Not the same as:** vault **`lecturers`** (course roster) or CMS **`faculty_staff`** (About page) — those are separate directories, not hub logins.
+
+### Staff test account (PIN flow)
+
+Same as member Option A, but use `level_of_entry: "staff"` in the PIN request:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/admin/pins/generate \
+  -H "Authorization: Bearer YOUR_ADMIN_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"matric_number":"STAFF001","level_of_entry":"staff"}'
+```
+
+After registration, confirm `users.role = staff` and the account can vote when email is verified.
+
 ## Test accounts
 
 ### Admin portal
@@ -100,7 +124,7 @@ All three rows can share the same hash if they share the password `TestPass123!`
    - Add **positions** (e.g. President, Secretary).
    - Under each position, add **contestants** (two or more per race).
    - Leave **require all positions** checked so voters must pick one per post.
-3. As a **student account** (member or executive — not super_admin): `/hub/elections` → open election → pick one contestant per position → **Review & submit ballot**.
+3. As a **student account** (member, staff, or executive — not super_admin): `/hub/elections` → open election → pick one contestant per position → **Review & submit ballot**.
 4. Confirm second submit returns an error; **Results** show winners and percentages **per position** (not global).
 5. Admin **Results & analytics** tab: turnout, ballots cast, per-position bars.
 

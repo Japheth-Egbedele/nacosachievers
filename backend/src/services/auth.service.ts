@@ -56,6 +56,7 @@ export async function registerUser(input: {
   }
 
   const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+  const isStaff = activePin.level_of_entry === 'staff';
 
   const { data: user, error } = await getSupabase()
     .from('users')
@@ -67,9 +68,10 @@ export async function registerUser(input: {
       last_name: input.lastName,
       display_name: input.displayName ?? `${input.firstName} ${input.lastName}`,
       department_id: activePin.department_id,
-      level_of_entry: activePin.level_of_entry,
+      level: activePin.level_of_entry ?? null,
+      level_of_entry: activePin.level_of_entry ?? null,
       admission_type: activePin.admission_type ?? 'regular',
-      role: 'member',
+      role: isStaff ? 'staff' : 'member',
     })
     .select('id')
     .single();
