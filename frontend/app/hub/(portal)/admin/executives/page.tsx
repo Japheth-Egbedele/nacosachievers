@@ -123,7 +123,7 @@ export default function AdminExecutivesPage() {
     <div>
       <AdminPageHeader
         title="Executives"
-        description="Search members by name or matric, assign a role title, or revoke access."
+        description="Search members by name or ID number, assign a role title, or revoke access."
       />
       {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
@@ -170,7 +170,7 @@ export default function AdminExecutivesPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name, matric (AU23…), email…"
+            placeholder="Search name, ID number (AU23…), email…"
             className="flex-1 rounded-lg border px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
           />
           <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-2 text-sm text-white">
@@ -182,7 +182,7 @@ export default function AdminExecutivesPage() {
             <thead className="bg-zinc-50 text-zinc-500 dark:bg-zinc-900">
               <tr>
                 <th className="px-4 py-3">Member</th>
-                <th className="px-4 py-3">Matric</th>
+                <th className="px-4 py-3">ID number</th>
                 <th className="px-4 py-3">Role</th>
                 <th className="px-4 py-3">Actions</th>
               </tr>

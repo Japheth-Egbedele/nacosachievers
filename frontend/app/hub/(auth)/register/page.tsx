@@ -95,7 +95,10 @@ export default function HubRegisterPage() {
       {step === 'pin' ? (
         <form onSubmit={validatePin} className="mt-8 space-y-5">
           {error && <HubAlert variant="error">{error}</HubAlert>}
-          <HubField label="Matric or staff ID" hint="Same ID format for students and department staff">
+          <HubField
+            label="ID number"
+            hint="Your matric number or staff ID (e.g. AU23AY4578)"
+          >
             <HubTextInput
               required
               value={matric}

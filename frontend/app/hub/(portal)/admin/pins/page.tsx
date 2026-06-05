@@ -53,7 +53,7 @@ export default function AdminPinsPage() {
   }
 
   const copyAllText = issued
-    ? `NACOS Hub onboarding\n${issued.level_of_entry === 'staff' ? 'Staff ID' : 'Matric'}: ${issued.matric_number}\nPIN: ${issued.pin}\nRegister: ${typeof window !== 'undefined' ? window.location.origin : ''}/hub/register`
+    ? `NACOS Hub onboarding\nID number (matric or staff ID): ${issued.matric_number}\nPIN: ${issued.pin}\nRegister: ${typeof window !== 'undefined' ? window.location.origin : ''}/hub/register`
     : '';
 
   if (loading || !isSuperAdmin) return null;
@@ -62,7 +62,7 @@ export default function AdminPinsPage() {
     <div>
       <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Issue onboarding PINs</h1>
       <p className="mt-2 max-w-xl text-sm text-zinc-600 dark:text-zinc-400">
-        Only <strong>super admins</strong> can create PINs. Share matric or staff ID + PIN once.
+        Only <strong>super admins</strong> can create PINs. Share ID number + PIN once (matric or staff ID).
         Students register as <strong>member</strong>; choose level <strong>Staff</strong> for lecturers
         and department staff. Register at{' '}
         <Link href="/hub/register" className="font-medium text-emerald-600 underline">
@@ -77,7 +77,8 @@ export default function AdminPinsPage() {
       >
         {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         <div>
-          <label className="block text-sm font-medium">Matric or staff ID</label>
+          <label className="block text-sm font-medium">ID number</label>
+          <p className="mt-0.5 text-xs text-zinc-500">Matric number or staff ID</p>
           <input
             required
             value={matric}
@@ -120,13 +121,14 @@ export default function AdminPinsPage() {
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="text-xs font-medium uppercase tracking-wide text-emerald-700/80">
-                  {issued.level_of_entry === 'staff' ? 'Staff ID' : 'Matric'}
+                  ID number
                 </p>
+                <p className="text-[10px] text-emerald-700/70">Matric or staff ID</p>
                 <p className="font-mono text-lg font-bold text-emerald-900 dark:text-emerald-100">
                   {issued.matric_number}
                 </p>
               </div>
-              <CopyButton value={issued.matric_number} label="Copy matric" />
+              <CopyButton value={issued.matric_number} label="Copy ID number" />
             </div>
           </div>
 

@@ -2,7 +2,7 @@ import { ApiClientError } from '@/lib/api';
 
 const PIN_ERROR_MESSAGES: Record<string, string> = {
   MATRIC_NOT_FOUND:
-    'No onboarding PIN found for this matric number. Contact your chapter admin.',
+    'No onboarding PIN found for this ID number. Contact your chapter admin.',
   PIN_ALREADY_USED: 'This PIN has already been used. Ask admin for a new PIN.',
   PIN_EXPIRED: 'Your PIN has expired. Ask admin for a new PIN.',
   INVALID_PIN: 'Incorrect PIN. Double-check the code from your admin.',

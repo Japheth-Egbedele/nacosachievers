@@ -72,13 +72,13 @@ export default function AdminMembersPage() {
         value={search}
         onChange={setSearch}
         onSubmit={load}
-        placeholder="Matric, email, name…"
+        placeholder="ID number, email, name…"
       />
       <div className="hub-card overflow-x-auto">
         <table className="min-w-full text-left text-sm">
           <thead className="border-b border-[var(--color-hub-border)] bg-[var(--color-hub-surface-muted)] text-[var(--color-hub-text-secondary)]">
             <tr>
-              <th className="px-4 py-3 font-medium">Matric</th>
+              <th className="px-4 py-3 font-medium">ID number</th>
               <th className="px-4 py-3 font-medium">Name</th>
               <th className="px-4 py-3 font-medium">Role</th>
               <th className="px-4 py-3 font-medium">Verified</th>

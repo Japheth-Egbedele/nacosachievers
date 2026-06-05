@@ -17,12 +17,12 @@ Set `NEXT_PUBLIC_API_URL=http://localhost:3000` in `frontend/.env.local`.
 1. Run all SQL in [MANUAL_SETUP.md](./MANUAL_SETUP.md) including **§2.22 Elections**.
 2. Seed super admin (§2.19).
 
-## How student onboarding works
+## How hub onboarding works
 
-1. **Super admin** issues a PIN (Hub → **PINs**, or `POST /api/v1/admin/pins/generate`) for the student’s **matric number**.
-2. **Student** opens `/hub/register` → enters matric + 8-character PIN → name, email, password.
-3. Student **verifies email** (link from Resend, or `/hub/verify-email` with token).
-4. Student **logs in** at `/hub/login` → can vote in **Elections** when an election is active.
+1. **Super admin** issues a PIN (Hub → **PINs**, or `POST /api/v1/admin/pins/generate`) for the person’s **ID number** (matric or staff ID).
+2. **Student or staff** opens `/hub/register` → enters ID number + 8-character PIN → name, email, password.
+3. User **verifies email** (link from Resend, or `/hub/verify-email` with token).
+4. User **logs in** at `/hub/login` → can vote in **Elections** when an election is active.
 
 Executives can manage **elections** but **cannot** generate PINs (super_admin only).
 
@@ -31,8 +31,8 @@ Executives can manage **elections** but **cannot** generate PINs (super_admin on
 Department staff and lecturers use the **same PIN flow** as students but register with `role = staff`.
 
 1. Run **MANUAL_SETUP §2.19.1** in Supabase if the `staff` enum value is not yet added.
-2. Super admin → **PINs** → enter **staff ID** (same format as matric) → set level to **Staff (lecturer / department staff)** → generate PIN.
-3. Staff opens `/hub/register` → staff ID + PIN → email, password → verify email → can vote in elections.
+2. Super admin → **PINs** → enter **ID number** (matric or staff ID) → set level to **Staff (lecturer / department staff)** → generate PIN.
+3. Staff opens `/hub/register` → ID number + PIN → email, password → verify email → can vote in elections.
 4. Staff do **not** see the Admin nav (unless promoted to executive separately).
 
 **Not the same as:** vault **`lecturers`** (course roster) or CMS **`faculty_staff`** (About page) — those are separate directories, not hub logins.

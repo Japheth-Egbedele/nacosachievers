@@ -800,7 +800,7 @@ If your database was created before the `staff` user role existed, run once in *
 ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'staff';
 ```
 
-**Staff hub onboarding:** Super admin issues a PIN with **level of entry = Staff** and the lecturer’s **staff ID** (same format as matric, stored in `matric_number`). Registration at `/hub/register` creates a `users` row with `role = staff`. This is separate from the vault **`lecturers`** table (course roster) and CMS **`faculty_staff`** table (About page).
+**Staff hub onboarding:** Super admin issues a PIN with **level of entry = Staff** and the lecturer’s **ID number** (matric or staff ID; stored in the `matric_number` column). Registration at `/hub/register` creates a `users` row with `role = staff`. This is separate from the vault **`lecturers`** table (course roster) and CMS **`faculty_staff`** table (About page).
 
 ---
 
