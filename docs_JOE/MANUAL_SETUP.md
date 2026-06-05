@@ -1001,8 +1001,8 @@ Run **twice** → one value for `CRON_SECRET`, one for `REFRESH_TOKEN_SECRET` (m
 | `REFRESH_TOKEN_SECRET` | 64-char hex from generator |
 | `RESEND_API_KEY` | From Step 5 |
 | `RESEND_FROM_EMAIL` | `onboarding@yourdomain.com` after Resend domain verified |
-| `FRONTEND_URL` | **Canonical** site URL for email links + primary CORS origin — e.g. `https://www.nacosachievers.com.ng` (no trailing slash) |
-| `CORS_ORIGINS` | Optional comma-separated extra origins, e.g. `https://nacosachievers.vercel.app,https://nacosachievers.com.ng` |
+| `FRONTEND_URL` | **One** URL only — `https://www.nacosachievers.com.ng` (include `https://`, no quotes, no commas) |
+| `CORS_ORIGINS` | Extra origins comma-separated — `https://nacosachievers.vercel.app,https://nacosachievers.com.ng` |
 | `CRON_SECRET` | Random hex — optional for external cron headers (future); still required by env schema |
 
 ### Vercel (`frontend` project)
