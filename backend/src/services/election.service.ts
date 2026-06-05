@@ -285,7 +285,7 @@ export async function getElectionDetail(electionId: string, userId: string) {
 
   const userVoteIds = userVoteRows?.map((r) => r.candidate_id) ?? [];
   const ballotLocked = userVoteIds.length > 0;
-  const showCounts = ballotLocked || election.status === 'completed';
+  const showCounts = election.status === 'completed';
 
   const positionsWithCandidates = positions.map((pos) => ({
     id: pos.id,

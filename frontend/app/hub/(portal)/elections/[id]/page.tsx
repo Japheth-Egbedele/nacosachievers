@@ -106,7 +106,7 @@ export default function ElectionDetailPage() {
   const { election, ballot_locked } = data;
   const canVote =
     data.can_vote !== false && !isSuperAdmin && election.status === 'active' && !ballot_locked;
-  const showResults = ballot_locked || election.status === 'completed';
+  const showResults = election.status === 'completed';
 
   function toggleSelect(positionId: string, candidateId: string) {
     setSelected((prev) => ({ ...prev, [positionId]: candidateId }));
@@ -153,7 +153,8 @@ export default function ElectionDetailPage() {
 
       {ballot_locked && !isSuperAdmin && (
         <HubAlert variant="success" className="mt-6">
-          Your ballot has been submitted and locked. You cannot change your choices.
+          Your ballot has been submitted and locked. You cannot change your choices. Results will be
+          published when voting closes.
         </HubAlert>
       )}
 
@@ -275,7 +276,7 @@ export default function ElectionDetailPage() {
           <ElectionResultsPanel
             positions={data.results.positions}
             analytics={data.results.analytics}
-            title={election.status === 'completed' ? 'Final results' : 'Live results'}
+            title="Final results"
           />
         </div>
       )}
