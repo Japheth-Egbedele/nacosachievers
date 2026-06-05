@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import ElectionResultsPanel from '@/app/hub/components/elections/ElectionResultsPanel';
-import { apiFetch, ApiClientError } from '@/lib/api';
+import { SpinnerCenter } from '@/app/components/Spinner';
 import type { ElectionPosition, ElectionResultsPayload } from '@/lib/election-types';
+import { apiFetch, ApiClientError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
 interface ElectionDetail {
@@ -76,7 +77,7 @@ export default function ElectionDetailPage() {
       : selectedCount >= 1);
 
   if (!data) {
-    return <p className="text-zinc-500">Loading election…</p>;
+    return <SpinnerCenter label="Loading election…" />;
   }
 
   const { election, ballot_locked } = data;

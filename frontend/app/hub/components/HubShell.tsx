@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { SpinnerCenter } from '@/app/components/Spinner';
 import BrandLogo from '@/app/components/BrandLogo';
 import { useAuth } from '@/lib/auth-context';
 
@@ -16,9 +17,7 @@ export default function HubShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-zinc-500">Loading…</div>
-    );
+    return <SpinnerCenter />;
   }
 
   if (!user) {

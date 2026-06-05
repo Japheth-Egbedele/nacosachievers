@@ -131,24 +131,15 @@ Save → **Manual Deploy** on Render.
 
 ### Email verification
 
-**Backend flow:** register → Resend sends link → `/hub/verify-email?token=...` auto-verifies.
+**Flow:** register → verification email → `/hub/verify-email?token=…` (auto-verifies from link).
 
-**Production (verified domain)**
+**Stuck without email**
 
-1. Resend → **Domains** → all records **Verified** (DKIM + `send` MX/TXT; inbound/receive optional).
-2. Render: `RESEND_FROM_EMAIL=onboarding@yourdomain.com` (must be on that verified domain).
-3. Redeploy Render → register with a real student email and confirm delivery.
+1. Open `/hub/verify-email` → **Resend verification email** (email + password).
+2. Wrong address? → **Update email and resend** (same password, new email).
+3. Login with an unverified account redirects to verify page automatically.
 
-**Dev fallback (no domain yet)**
-
-| `RESEND_FROM_EMAIL` | Who can receive |
-|---------------------|-----------------|
-| `onboarding@resend.dev` | Usually only the Resend account owner’s inbox |
-| `@yourdomain.com` (verified) | Any real student address |
-
-Until the domain is verified: SQL `is_email_verified = true` for test voters, or PIN + manual verify.
-
-**Frontend:** clicking the email link should verify automatically. Paste-token field remains as fallback.
+Confirm Render `RESEND_FROM_EMAIL` uses your verified domain (e.g. `onboarding@nacosachievers.com.ng`).
 
 ### Login fails after CORS is fixed
 

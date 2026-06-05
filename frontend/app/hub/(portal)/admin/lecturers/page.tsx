@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { SpinnerCenter } from '@/app/components/Spinner';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
 import { apiFetch, ApiClientError } from '@/lib/api';
 
@@ -14,11 +15,14 @@ export default function AdminLecturersPage() {
   const [list, setList] = useState<Lecturer[]>([]);
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const load = () => {
+    setLoading(true);
     apiFetch<Lecturer[]>('/admin/lecturers')
       .then(setList)
-      .catch(() => setList([]));
+      .catch(() => setList([]))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
@@ -66,6 +70,9 @@ export default function AdminLecturersPage() {
           Add
         </button>
       </form>
+      {loading ? (
+        <SpinnerCenter />
+      ) : (
       <ul className="space-y-2">
         {list.map((l) => (
           <li
@@ -79,6 +86,7 @@ export default function AdminLecturersPage() {
           </li>
         ))}
       </ul>
+      )}
     </div>
   );
 }

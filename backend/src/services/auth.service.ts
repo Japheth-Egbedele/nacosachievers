@@ -48,7 +48,7 @@ export async function registerUser(input: {
   firstName: string;
   lastName: string;
   displayName?: string;
-}): Promise<{ userId: string }> {
+}): Promise<{ userId: string; email_sent: boolean }> {
   const matricNumber = tokenService.verifyOnboardingToken(input.onboardingToken);
   const activePin = await pinService.getActivePinForMatric(matricNumber);
   if (!activePin) {
@@ -83,21 +83,121 @@ export async function registerUser(input: {
 
   await pinService.markPinUsed(activePin.id);
 
+  const emailSent = await issueVerificationEmail(user.id, input.email.toLowerCase());
+
+  return { userId: user.id, email_sent: emailSent };
+}
+
+async function issueVerificationEmail(userId: string, email: string): Promise<boolean> {
+  await getSupabase()
+    .from('email_verifications')
+    .update({ used_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .is('used_at', null);
+
   const verifyToken = tokenService.signActionToken(
-    user.id,
+    userId,
     'email_verify',
     `${EMAIL_VERIFY_EXPIRY_HOURS}h`,
   );
   const tokenHash = sha256(verifyToken);
   await getSupabase().from('email_verifications').insert({
-    user_id: user.id,
+    user_id: userId,
     token_hash: tokenHash,
     expires_at: addHours(new Date(), EMAIL_VERIFY_EXPIRY_HOURS).toISOString(),
   });
 
-  await emailService.sendVerificationEmail(input.email, verifyToken);
+  try {
+    await emailService.sendVerificationEmail(email, verifyToken);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
-  return { userId: user.id };
+async function getUnverifiedUserByCredentials(
+  email: string,
+  password: string,
+): Promise<UserRecord> {
+  const { data: user } = await getSupabase()
+    .from('users')
+    .select(USER_COLUMNS)
+    .eq('email', email.toLowerCase())
+    .maybeSingle();
+
+  if (!user) {
+    throw new AuthError(ERROR_MESSAGES.INVALID_CREDENTIALS);
+  }
+
+  const record = user as UserRecord;
+  const valid = await bcrypt.compare(password, record.password_hash);
+  if (!valid) {
+    throw new AuthError(ERROR_MESSAGES.INVALID_CREDENTIALS);
+  }
+
+  if (record.is_email_verified) {
+    throw new ValidationError('Email is already verified. You can sign in.');
+  }
+
+  if (!record.is_active) {
+    throw new AuthError(ERROR_MESSAGES.ACCOUNT_INACTIVE);
+  }
+
+  return record;
+}
+
+/**
+ * Resends verification email for an unverified account.
+ */
+export async function resendVerificationEmail(
+  email: string,
+  password: string,
+): Promise<{ email_sent: boolean }> {
+  const user = await getUnverifiedUserByCredentials(email, password);
+  const emailSent = await issueVerificationEmail(user.id, user.email);
+  if (!emailSent) {
+    throw new ValidationError(
+      'Could not send email. Check Resend configuration or try again shortly.',
+    );
+  }
+  return { email_sent: true };
+}
+
+/**
+ * Updates email for an unverified account and sends a new verification link.
+ */
+export async function correctPendingEmail(input: {
+  email: string;
+  password: string;
+  newEmail: string;
+}): Promise<{ email_sent: boolean; email: string }> {
+  const user = await getUnverifiedUserByCredentials(input.email, input.password);
+  const newEmail = input.newEmail.toLowerCase();
+
+  if (newEmail === user.email.toLowerCase()) {
+    throw new ValidationError('New email must be different from the current one');
+  }
+
+  const { error } = await getSupabase()
+    .from('users')
+    .update({ email: newEmail, updated_at: new Date().toISOString() })
+    .eq('id', user.id);
+
+  if (error) {
+    if (error.code === '23505') {
+      throw new ValidationError('That email is already registered');
+    }
+    throw error;
+  }
+
+  const emailSent = await issueVerificationEmail(user.id, newEmail);
+  if (!emailSent) {
+    throw new ValidationError(
+      'Email updated but verification message could not be sent. Try resend shortly.',
+    );
+  }
+
+  return { email_sent: true, email: newEmail };
 }
 
 /**
@@ -157,7 +257,7 @@ export async function login(email: string, password: string): Promise<LoginResul
   }
 
   if (!record.is_email_verified) {
-    throw new AuthError(ERROR_MESSAGES.EMAIL_NOT_VERIFIED);
+    throw new AuthError(ERROR_MESSAGES.EMAIL_NOT_VERIFIED, 'EMAIL_NOT_VERIFIED');
   }
 
   if (!record.is_active) {

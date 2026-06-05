@@ -14,4 +14,5 @@ export const SUCCESS_MESSAGES = {
   LOGOUT: 'Logged out successfully',
   PASSWORD_RESET_SENT: 'If an account exists, a reset link has been sent',
   EMAIL_VERIFIED: 'Email verified successfully',
+  VERIFICATION_SENT: 'Verification email sent',
 } as const;

@@ -47,7 +47,7 @@ export default function HubRegisterPage() {
     setError('');
     setBusy(true);
     try {
-      await apiFetch(
+      const result = await apiFetch<{ userId: string; email_sent?: boolean }>(
         '/auth/register',
         {
           method: 'POST',
@@ -61,7 +61,10 @@ export default function HubRegisterPage() {
         },
         false,
       );
-      router.push('/hub/verify-email?registered=1');
+      const qs = new URLSearchParams({ registered: '1' });
+      if (result.email_sent === false) qs.set('email_sent', '0');
+      if (email.trim()) qs.set('email', email.trim());
+      router.push(`/hub/verify-email?${qs.toString()}`);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Registration failed');
     } finally {

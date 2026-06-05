@@ -24,6 +24,12 @@ export default function HubLoginPage() {
       await login(email, password);
       router.push('/hub/dashboard');
     } catch (err) {
+      if (err instanceof ApiClientError && err.code === 'EMAIL_NOT_VERIFIED') {
+        router.push(
+          `/hub/verify-email?unverified=1&email=${encodeURIComponent(email.trim())}`,
+        );
+        return;
+      }
       setError(err instanceof ApiClientError ? err.message : 'Login failed');
     } finally {
       setBusy(false);

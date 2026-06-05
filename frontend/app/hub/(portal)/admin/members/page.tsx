@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { SpinnerCenter } from '@/app/components/Spinner';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
 import { apiFetch, apiFetchPaginated, ApiClientError } from '@/lib/api';
 
@@ -20,13 +21,16 @@ export default function AdminMembersPage() {
   const [search, setSearch] = useState('');
   const [items, setItems] = useState<Member[]>([]);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     const q = search.trim() ? `?search=${encodeURIComponent(search.trim())}&limit=50` : '?limit=50';
+    setLoading(true);
     apiFetchPaginated<Member>(`/admin/members${q}`)
       .then((r) => setItems(r.items))
-      .catch(() => setItems([]));
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
   }, [search]);
 
   useEffect(() => {
@@ -47,6 +51,10 @@ export default function AdminMembersPage() {
     } finally {
       setBusyId(null);
     }
+  }
+
+  if (loading && items.length === 0) {
+    return <SpinnerCenter />;
   }
 
   return (

@@ -10,6 +10,10 @@ const dmSans = DM_Sans({
 export const metadata: Metadata = {
   title: "NACOS Achievers",
   description: "NACOS Achievers Portal",
+  icons: {
+    icon: '/logo.png',
+    apple: '/logo.png',
+  },
 };
 
 export default function RootLayout({

@@ -2,8 +2,10 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { SpinnerCenter } from '@/app/components/Spinner';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { getHubGreeting } from '@/lib/hub-greeting';
 
 interface DashboardData {
   stats: {
@@ -18,17 +20,26 @@ interface DashboardData {
 export default function DashboardPage() {
   const { user, isAdmin, isSuperAdmin } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const greeting = getHubGreeting(user);
 
   useEffect(() => {
-    apiFetch<DashboardData>('/elections/dashboard').then(setData).catch(() => setData(null));
+    apiFetch<DashboardData>('/elections/dashboard')
+      .then(setData)
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
   }, []);
+
+  if (loading) {
+    return <SpinnerCenter />;
+  }
 
   return (
     <div>
-      <h1 className="text-2xl font-bold">
-        Welcome{user?.display_name || user?.first_name ? `, ${user.display_name ?? user.first_name}` : ''}
-      </h1>
-      <p className="mt-2 text-zinc-600">Matric: {user?.matric_number ?? '—'}</p>
+      <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">{greeting.heading}</h1>
+      {greeting.subtext && (
+        <p className="mt-2 text-zinc-600 dark:text-zinc-400">{greeting.subtext}</p>
+      )}
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Active elections" value={data?.stats.active_elections ?? 0} />
@@ -66,20 +77,20 @@ export default function DashboardPage() {
         </ul>
       </section>
 
+      {isAdmin && (
+        <Link
+          href="/hub/admin"
+          className="mt-8 inline-block rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40"
+        >
+          Open admin portal
+        </Link>
+      )}
       {isSuperAdmin && (
         <Link
           href="/hub/admin/pins"
-          className="mt-8 mr-4 inline-block rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900"
+          className="mt-4 ml-0 inline-block rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900 sm:ml-4"
         >
           Issue onboarding PINs
-        </Link>
-      )}
-      {isAdmin && (
-        <Link
-          href="/hub/admin/elections"
-          className="mt-8 inline-block rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-800"
-        >
-          Manage elections
         </Link>
       )}
 

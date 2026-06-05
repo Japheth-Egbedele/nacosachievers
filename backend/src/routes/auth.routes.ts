@@ -6,9 +6,11 @@ import {
   loginRateLimiter,
 } from '../middleware/rate-limiter.js';
 import {
+  correctPendingEmailSchema,
   forgotPasswordSchema,
   loginSchema,
   registerSchema,
+  resendVerificationSchema,
   resetPasswordSchema,
   validatePinSchema,
   verifyEmailSchema,
@@ -36,6 +38,20 @@ router.post(
   authRateLimiter,
   validate(verifyEmailSchema),
   catchAsync(authController.verifyEmail),
+);
+
+router.post(
+  '/resend-verification',
+  authRateLimiter,
+  validate(resendVerificationSchema),
+  catchAsync(authController.resendVerification),
+);
+
+router.post(
+  '/correct-pending-email',
+  authRateLimiter,
+  validate(correctPendingEmailSchema),
+  catchAsync(authController.correctPendingEmail),
 );
 
 router.post(

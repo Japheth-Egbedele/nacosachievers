@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { SpinnerCenter } from '@/app/components/Spinner';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
 import { apiFetch, apiFetchPaginated, ApiClientError } from '@/lib/api';
 
@@ -24,20 +25,25 @@ export default function AdminVaultPage() {
   const [pending, setPending] = useState<PendingUpload[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const loadPending = () => {
     apiFetch<PendingUpload[]>('/vault/pending')
       .then(setPending)
-      .catch(() => setPending([]));
+      .catch(() => setPending([]))
+      .finally(() => setLoading(false));
   };
 
   const loadCourses = () => {
+    setLoading(true);
     apiFetchPaginated<Course>('/vault/courses?limit=100')
       .then((r) => setCourses(r.items))
-      .catch(() => setCourses([]));
+      .catch(() => setCourses([]))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
+    setLoading(true);
     if (tab === 'pending') loadPending();
     else loadCourses();
   }, [tab]);
@@ -75,6 +81,10 @@ export default function AdminVaultPage() {
           </button>
         ))}
       </div>
+      {loading ? (
+        <SpinnerCenter />
+      ) : (
+        <>
       {tab === 'pending' && (
         <ul className="space-y-3">
           {pending.map((u) => (
@@ -123,6 +133,8 @@ export default function AdminVaultPage() {
               </li>
             ))}
           </ul>
+        </>
+      )}
         </>
       )}
     </div>

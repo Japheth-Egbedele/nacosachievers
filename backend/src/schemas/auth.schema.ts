@@ -32,6 +32,17 @@ export const resetPasswordSchema = z.object({
   password: z.string().min(8).max(128),
 });
 
+export const resendVerificationSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+export const correctPendingEmailSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+  new_email: z.string().email(),
+});
+
 export const generatePinSchema = z.object({
   matric_number: z.string().min(3).max(32),
   department_id: z.string().uuid().optional(),

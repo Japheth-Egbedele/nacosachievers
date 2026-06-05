@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { SpinnerCenter } from '@/app/components/Spinner';
 import { filterAdminNav } from '@/lib/admin-nav';
 import { useAuth } from '@/lib/auth-context';
 
@@ -17,7 +18,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const links = filterAdminNav(isSuperAdmin);
 
   if (loading) {
-    return <div className="py-12 text-center text-sm text-zinc-500">Loading admin…</div>;
+    return <SpinnerCenter label="Loading admin…" />;
   }
 
   if (!isAdmin) {

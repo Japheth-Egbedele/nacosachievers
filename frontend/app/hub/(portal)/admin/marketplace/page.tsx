@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { SpinnerCenter } from '@/app/components/Spinner';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
 import { apiFetchPaginated, apiFetch, ApiClientError } from '@/lib/api';
 
@@ -25,14 +26,23 @@ export default function AdminMarketplacePage() {
   const [name, setName] = useState('');
   const [cost, setCost] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const load = () => {
-    apiFetchPaginated<Order>('/admin/marketplace/orders?limit=30')
-      .then((r) => setOrders(r.items))
-      .catch(() => setOrders([]));
-    apiFetchPaginated<Item>('/marketplace/items?limit=50')
-      .then((r) => setItems(r.items))
-      .catch(() => setItems([]));
+    setLoading(true);
+    Promise.all([
+      apiFetchPaginated<Order>('/admin/marketplace/orders?limit=30'),
+      apiFetchPaginated<Item>('/marketplace/items?limit=50'),
+    ])
+      .then(([ordersRes, itemsRes]) => {
+        setOrders(ordersRes.items);
+        setItems(itemsRes.items);
+      })
+      .catch(() => {
+        setOrders([]);
+        setItems([]);
+      })
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
@@ -93,6 +103,10 @@ export default function AdminMarketplacePage() {
           Add item
         </button>
       </form>
+      {loading ? (
+        <SpinnerCenter />
+      ) : (
+        <>
       <h2 className="mb-2 text-sm font-semibold text-zinc-700">Items</h2>
       <ul className="mb-8 space-y-1 text-sm">
         {items.map((i) => (
@@ -119,6 +133,8 @@ export default function AdminMarketplacePage() {
           </li>
         ))}
       </ul>
+        </>
+      )}
     </div>
   );
 }

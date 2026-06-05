@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { SpinnerCenter } from '@/app/components/Spinner';
 import { apiFetch, ApiClientError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
@@ -25,15 +26,18 @@ export default function AdminElectionsPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [error, setError] = useState('');
+  const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
     if (!loading && !isAdmin) router.replace('/hub/dashboard');
   }, [loading, isAdmin, router]);
 
   const load = () => {
+    setDataLoading(true);
     apiFetch<{ elections: Election[] }>('/admin/elections')
       .then((d) => setElections(d.elections))
-      .catch(() => setElections([]));
+      .catch(() => setElections([]))
+      .finally(() => setDataLoading(false));
   };
 
   useEffect(() => {
@@ -67,6 +71,7 @@ export default function AdminElectionsPage() {
   }
 
   if (loading || !isAdmin) return null;
+  if (dataLoading) return <SpinnerCenter label="Loading elections…" />;
 
   return (
     <div>

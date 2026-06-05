@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import ElectionResultsPanel from '@/app/hub/components/elections/ElectionResultsPanel';
-import { apiFetch, ApiClientError } from '@/lib/api';
+import { SpinnerCenter } from '@/app/components/Spinner';
 import type { ElectionAnalytics, ElectionPosition } from '@/lib/election-types';
+import { apiFetch, ApiClientError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
 interface SetupData {
@@ -166,7 +167,7 @@ export default function AdminElectionDetailPage() {
   }
 
   if (loading || !isAdmin) return null;
-  if (!setup) return <p className="text-zinc-500">Loading election…</p>;
+  if (!setup) return <SpinnerCenter label="Loading election…" />;
 
   const { election, can_edit_structure } = setup;
   const statusStyles: Record<string, string> = {

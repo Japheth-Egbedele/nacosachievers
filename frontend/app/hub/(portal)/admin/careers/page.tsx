@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { SpinnerCenter } from '@/app/components/Spinner';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
 import { apiFetchPaginated, apiFetch, ApiClientError } from '@/lib/api';
 
@@ -15,11 +16,14 @@ interface Posting {
 export default function AdminCareersPage() {
   const [items, setItems] = useState<Posting[]>([]);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
   const load = () => {
+    setLoading(true);
     apiFetchPaginated<Posting>('/admin/careers/postings?limit=50')
       .then((r) => setItems(r.items))
-      .catch(() => setItems([]));
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
@@ -43,6 +47,9 @@ export default function AdminCareersPage() {
     <div>
       <AdminPageHeader title="Careers" description="Verify or reject member job postings." />
       {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {loading ? (
+        <SpinnerCenter />
+      ) : (
       <ul className="space-y-3">
         {items.map((p) => (
           <li
@@ -76,6 +83,7 @@ export default function AdminCareersPage() {
           </li>
         ))}
       </ul>
+      )}
     </div>
   );
 }

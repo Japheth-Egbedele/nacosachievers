@@ -77,6 +77,28 @@ export async function verifyEmail(req: Request, res: Response): Promise<void> {
 }
 
 /**
+ * POST /auth/resend-verification
+ */
+export async function resendVerification(req: Request, res: Response): Promise<void> {
+  const { email, password } = req.body as { email: string; password: string };
+  const result = await authService.resendVerificationEmail(email, password);
+  sendSuccess(res, result, HTTP_STATUS.OK, SUCCESS_MESSAGES.VERIFICATION_SENT);
+}
+
+/**
+ * POST /auth/correct-pending-email
+ */
+export async function correctPendingEmail(req: Request, res: Response): Promise<void> {
+  const body = req.body as { email: string; password: string; new_email: string };
+  const result = await authService.correctPendingEmail({
+    email: body.email,
+    password: body.password,
+    newEmail: body.new_email,
+  });
+  sendSuccess(res, result, HTTP_STATUS.OK, SUCCESS_MESSAGES.VERIFICATION_SENT);
+}
+
+/**
  * POST /auth/login
  */
 export async function login(req: Request, res: Response): Promise<void> {
