@@ -14,6 +14,8 @@ const envSchema = z.object({
     .string()
     .url()
     .transform((url) => url.replace(/\/+$/, '')),
+  /** Comma-separated extra browser origins (Vercel preview URL, apex domain, etc.) */
+  CORS_ORIGINS: z.string().optional(),
   CRON_SECRET: z.string().min(16),
 });
 
@@ -35,3 +37,12 @@ export function loadEnv(): Env {
 }
 
 export const env = loadEnv();
+
+/** Canonical site URL for email links + primary CORS origin. */
+export function getCorsOrigins(): string[] {
+  const extras =
+    env.CORS_ORIGINS?.split(',')
+      .map((o) => o.trim().replace(/\/+$/, ''))
+      .filter(Boolean) ?? [];
+  return [...new Set([env.FRONTEND_URL, ...extras])];
+}

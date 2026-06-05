@@ -3,7 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import pinoHttp from 'pino-http';
-import { env } from './config/env.js';
+import { getCorsOrigins } from './config/env.js';
 import { logger } from './config/logger.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { apiRouter, healthRoutes } from './routes/index.js';
@@ -27,9 +27,16 @@ export function createApp(): express.Application {
   );
 
   app.use(helmet());
+  const allowedOrigins = getCorsOrigins();
   app.use(
     cors({
-      origin: env.FRONTEND_URL,
+      origin(origin, callback) {
+        if (!origin || allowedOrigins.includes(origin.replace(/\/+$/, ''))) {
+          callback(null, true);
+        } else {
+          callback(new Error(`CORS blocked for origin: ${origin}`));
+        }
+      },
       credentials: true,
     }),
   );

@@ -1,6 +1,6 @@
 import { getSupabase } from '../config/supabase.js';
 import type { NotificationType } from '../constants/enums.js';
-import { getResend, emailEnv } from '../config/resend.js';
+import { getResend, resendFromAddress } from '../config/resend.js';
 import { logger } from '../config/logger.js';
 
 /**
@@ -43,7 +43,7 @@ export async function maybeSendEmail(
 
   try {
     await getResend().emails.send({
-      from: emailEnv.RESEND_FROM_EMAIL,
+      from: resendFromAddress(),
       to: user.email,
       subject,
       html,

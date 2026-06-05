@@ -303,7 +303,7 @@ export async function getElectionDetail(electionId: string, userId: string) {
   if (showCounts) {
     payload.results = {
       positions: buildPositionResults(positions, candidates, countByCandidate),
-      analytics: await buildAnalytics(electionId, uniqueVoters, positions, candidates),
+      analytics: await buildAnalytics(uniqueVoters, positions, candidates),
     };
   }
 
@@ -311,7 +311,6 @@ export async function getElectionDetail(electionId: string, userId: string) {
 }
 
 async function buildAnalytics(
-  electionId: string,
   uniqueVoters: number,
   positions: PositionRow[],
   candidates: CandidateRow[],
@@ -796,7 +795,7 @@ export async function getElectionResults(electionId: string) {
 
   const { countByCandidate, uniqueVoters } = buildVoteCounts(voteRows ?? []);
   const positionResults = buildPositionResults(positions, candidates, countByCandidate);
-  const analytics = await buildAnalytics(electionId, uniqueVoters, positions, candidates);
+  const analytics = await buildAnalytics(uniqueVoters, positions, candidates);
 
   return {
     election: {

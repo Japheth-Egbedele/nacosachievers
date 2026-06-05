@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getSupabase } from '../config/supabase.js';
-import { getResend, emailEnv } from '../config/resend.js';
+import { getResend, resendFromAddress } from '../config/resend.js';
 import { NotFoundError, ValidationError } from '../utils/errors.js';
 import { parsePagination, buildMeta } from '../utils/pagination.js';
 import type { PaginationMeta } from '../utils/response.js';
@@ -697,7 +697,7 @@ export async function sendContactMessage(input: {
   }
 
   await getResend().emails.send({
-    from: emailEnv.RESEND_FROM_EMAIL,
+    from: resendFromAddress(),
     to: contactEmail,
     replyTo: input.email,
     subject: `[NACOS Contact] ${input.subject}`,

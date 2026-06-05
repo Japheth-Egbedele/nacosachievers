@@ -14,4 +14,9 @@ export function getResend(): Resend {
   return resend;
 }
 
+/** Branded From header once your domain is verified in Resend. */
+export function resendFromAddress(): string {
+  return `NACOS Achievers <${env.RESEND_FROM_EMAIL}>`;
+}
+
 export { env as emailEnv };

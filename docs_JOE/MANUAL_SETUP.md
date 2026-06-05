@@ -857,12 +857,24 @@ Store both base64 strings as environment variables. Delete the `.pem` files afte
 ## Step 5 — Resend (Email)
 
 1. Go to https://resend.com and create an account
-2. Get your API key from the dashboard → this is `RESEND_API_KEY`
-3. For sending emails, you'll use `onboarding@resend.dev` during development (no domain needed)
-4. When your domain is ready:
-   - Go to **Domains** in Resend
-   - Add your domain and follow the DNS verification steps
-   - Use `noreply@yourdomain.com` as `RESEND_FROM_EMAIL`
+2. **API keys** → create a key → `RESEND_API_KEY` on Render
+3. **Domains** → **Add domain** → enter your chapter domain (e.g. `nacosachievers.com.ng`)
+4. At your DNS host (registrar / Cloudflare), add the records Resend shows:
+   - **DKIM** (`resend._domainkey` TXT) — usually verifies first
+   - **Enable sending** (`send` MX + TXT) — required for outbound mail
+   - **DMARC** (`_dmarc` TXT) — recommended
+   - **Receive / inbound MX** — **not required** for Hub verification, password reset, or notifications (send-only is fine)
+5. Wait until Resend shows the domain **Verified** (pending records often take 5–60 minutes; up to 48h). Use **Verify** / refresh in the dashboard.
+6. Set on **Render** (and `backend/.env` for local):
+
+| Variable | Example |
+|----------|---------|
+| `RESEND_API_KEY` | `re_…` from Resend |
+| `RESEND_FROM_EMAIL` | `onboarding@nacosachievers.com.ng` or `noreply@nacosachievers.com.ng` |
+
+The address must use your **verified** domain (not `onboarding@resend.dev`). Redeploy Render after changing env vars.
+
+7. **Smoke test:** register a student with a real inbox → check verification email from **NACOS Achievers** → link opens `/hub/verify-email?token=…`
 
 ---
 
@@ -988,8 +1000,9 @@ Run **twice** → one value for `CRON_SECRET`, one for `REFRESH_TOKEN_SECRET` (m
 | `JWT_PUBLIC_KEY` | Base64 from Step 4 |
 | `REFRESH_TOKEN_SECRET` | 64-char hex from generator |
 | `RESEND_API_KEY` | From Step 5 |
-| `RESEND_FROM_EMAIL` | `onboarding@resend.dev` until domain verified, then `noreply@yourdomain.com` |
-| `FRONTEND_URL` | `https://your-app.vercel.app` — must match Vercel production URL |
+| `RESEND_FROM_EMAIL` | `onboarding@yourdomain.com` after Resend domain verified |
+| `FRONTEND_URL` | **Canonical** site URL for email links + primary CORS origin — e.g. `https://www.nacosachievers.com.ng` (no trailing slash) |
+| `CORS_ORIGINS` | Optional comma-separated extra origins, e.g. `https://nacosachievers.vercel.app,https://nacosachievers.com.ng` |
 | `CRON_SECRET` | Random hex — optional for external cron headers (future); still required by env schema |
 
 ### Vercel (`frontend` project)
@@ -1050,14 +1063,16 @@ You do **not** need a separate Supabase cron URL. Pinging `/health` on Render tr
 ## Step 10 — Custom domain (when ready)
 
 1. Purchase domain (e.g. `.com.ng` via Whogohost, SmartWeb Nigeria, etc.)
-2. **Vercel** → Project → **Domains** → add `yourdomain.com` / `www` → follow DNS instructions
-3. **Render** → Service → **Settings** → **Custom Domains** → add `api.yourdomain.com` → add DNS CNAME as Render shows
-4. **Resend** → verify domain (Step 5) → set `RESEND_FROM_EMAIL=noreply@yourdomain.com` on Render
-5. Update env:
-   - Render `FRONTEND_URL` → `https://yourdomain.com` (or `https://www.yourdomain.com` — pick one canonical origin)
-   - Vercel `NEXT_PUBLIC_API_URL` → `https://api.yourdomain.com`
-6. Update cron-job.org URL if you use a custom API host (still `/health` on that host)
-7. Redeploy both services
+2. **Vercel** → Project → **Domains** → add `nacosachievers.com.ng` and `www.nacosachievers.com.ng` → follow DNS instructions
+3. Pick **one canonical URL** for students (recommend `https://www.nacosachievers.com.ng`) and redirect the other in Vercel if needed
+4. **Render** → Environment → update and redeploy:
+   - `FRONTEND_URL` = `https://www.nacosachievers.com.ng` (exact origin students use in the browser)
+   - `CORS_ORIGINS` = `https://nacosachievers.vercel.app,https://nacosachievers.com.ng` (optional; keeps old URLs working during transition)
+5. **Resend** → verify domain (Step 5) → `RESEND_FROM_EMAIL=onboarding@nacosachievers.com.ng`
+6. **Vercel** → `NEXT_PUBLIC_API_URL` stays `https://nacosachievers.onrender.com` unless you add a custom API subdomain on Render
+7. Redeploy **Render** after env changes (required for CORS)
+
+**CORS errors:** browser origin must match `FRONTEND_URL` or an entry in `CORS_ORIGINS`. If login works on Vercel URL but not custom domain, `FRONTEND_URL` still points at the old hostname.
 
 ---
 

@@ -112,36 +112,43 @@ All three rows can share the same hash if they share the password `TestPass123!`
 
 ### CORS: `Access-Control-Allow-Origin` mismatch
 
-Browser shows origin `https://your-app.vercel.app` but header is `https://your-app.vercel.app/` → **trailing slash** on Render `FRONTEND_URL`.
+Browser origin must appear in Render **`FRONTEND_URL`** or **`CORS_ORIGINS`**.
 
-**Fix:** Render → Environment → set `FRONTEND_URL` to `https://nacosachievers.vercel.app` (no `/` at end) → Save → Redeploy.
+| Symptom | Fix |
+|---------|-----|
+| Origin `https://www.nacosachievers.com.ng` but header is `https://nacosachievers.vercel.app` | Set `FRONTEND_URL=https://www.nacosachievers.com.ng` on Render → redeploy |
+| Need Vercel URL + apex + www during transition | Add `CORS_ORIGINS=https://nacosachievers.vercel.app,https://nacosachievers.com.ng` |
+| Trailing slash on URL | Strip trailing `/` from env values |
 
-The API also strips trailing slashes on startup (after you deploy the latest backend).
+**Quick fix for your case (Render → Environment):**
+
+```
+FRONTEND_URL=https://www.nacosachievers.com.ng
+CORS_ORIGINS=https://nacosachievers.vercel.app,https://nacosachievers.com.ng
+```
+
+Save → **Manual Deploy** on Render.
 
 ### Email verification
 
-**Backend flow works** when Resend accepts the message: register → email with link → `/hub/verify-email?token=...` auto-verifies.
+**Backend flow:** register → Resend sends link → `/hub/verify-email?token=...` auto-verifies.
 
-**Why students may not get mail yet**
+**Production (verified domain)**
+
+1. Resend → **Domains** → all records **Verified** (DKIM + `send` MX/TXT; inbound/receive optional).
+2. Render: `RESEND_FROM_EMAIL=onboarding@yourdomain.com` (must be on that verified domain).
+3. Redeploy Render → register with a real student email and confirm delivery.
+
+**Dev fallback (no domain yet)**
 
 | `RESEND_FROM_EMAIL` | Who can receive |
 |---------------------|-----------------|
-| `onboarding@resend.dev` (test) | Usually only the Resend account owner’s inbox — not arbitrary student addresses |
-| `noreply@yourchapter.org` (verified domain) | Any real student email |
+| `onboarding@resend.dev` | Usually only the Resend account owner’s inbox |
+| `@yourdomain.com` (verified) | Any real student address |
 
-**To go live with real students**
+Until the domain is verified: SQL `is_email_verified = true` for test voters, or PIN + manual verify.
 
-1. Buy/use a chapter domain (or subdomain).
-2. Resend → **Domains** → add domain → add DNS records (SPF/DKIM).
-3. Render env: `RESEND_FROM_EMAIL=noreply@yourdomain.com` (must match verified domain).
-4. Redeploy Render.
-
-**Until then (testing)**
-
-- Register with your own email if it matches Resend’s allowed test recipients, **or**
-- Supabase → `users` → set `is_email_verified = true` for test accounts.
-
-**Frontend:** clicking the link in the email should verify automatically (no manual paste). Paste token field remains as fallback.
+**Frontend:** clicking the email link should verify automatically. Paste-token field remains as fallback.
 
 ### Login fails after CORS is fixed
 

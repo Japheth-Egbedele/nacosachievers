@@ -1,4 +1,4 @@
-import { getResend, emailEnv } from '../config/resend.js';
+import { getResend, emailEnv, resendFromAddress } from '../config/resend.js';
 import { logger } from '../config/logger.js';
 
 /**
@@ -24,7 +24,7 @@ export async function sendVerificationEmail(email: string, token: string): Promi
   const link = `${emailEnv.FRONTEND_URL}/hub/verify-email?token=${encodeURIComponent(token)}`;
   try {
     await getResend().emails.send({
-      from: emailEnv.RESEND_FROM_EMAIL,
+      from: resendFromAddress(),
       to: email,
       subject: 'Verify your NACOS account',
       html: verificationEmailHtml(link),
@@ -44,7 +44,7 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
   const link = `${emailEnv.FRONTEND_URL}/hub/reset-password?token=${encodeURIComponent(token)}`;
   try {
     await getResend().emails.send({
-      from: emailEnv.RESEND_FROM_EMAIL,
+      from: resendFromAddress(),
       to: email,
       subject: 'Reset your NACOS password',
       html: `<p><a href="${link}">Reset your password</a>. This link expires in 1 hour.</p>`,
@@ -63,7 +63,7 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
 export async function sendWelcomeEmail(email: string, displayName: string): Promise<void> {
   try {
     await getResend().emails.send({
-      from: emailEnv.RESEND_FROM_EMAIL,
+      from: resendFromAddress(),
       to: email,
       subject: 'Welcome to NACOS Achievers',
       html: `<p>Hi ${displayName}, your account is active. Visit The Hub to get started.</p>`,
