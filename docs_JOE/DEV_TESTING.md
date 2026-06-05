@@ -104,6 +104,16 @@ All three rows can share the same hash if they share the password `TestPass123!`
 4. Confirm second submit returns an error; **Results** show winners and percentages **per position** (not global).
 5. Admin **Results & analytics** tab: turnout, ballots cast, per-position bars.
 
+### Election detail returns 500
+
+**Symptom:** List shows elections, but opening one fails (`500` on `/elections/:id` or `/admin/elections/:id`).
+
+**Cause:** Production Supabase is missing the **position-first** election schema (`election_positions` table, `position_id` on candidates, refreshed `elections_with_status` view).
+
+**Fix:** In Supabase → **SQL Editor**, run the full block in **MANUAL_SETUP §2.22.1** (Elections positions migration). It is safe to re-run (`if not exists` / `drop view if exists`).
+
+After running, redeploy is **not** required — retry opening the election in the Hub.
+
 ## Health check
 
 `GET http://localhost:3000/health`

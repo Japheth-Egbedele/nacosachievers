@@ -7,7 +7,7 @@ import ElectionResultsPanel from '@/app/hub/components/elections/ElectionResults
 import { SpinnerCenter } from '@/app/components/Spinner';
 import HubAlert from '@/app/hub/components/ui/HubAlert';
 import { IconChevronLeft } from '@/app/hub/components/ui/HubIcons';
-import { hubBtnPrimary } from '@/lib/hub-styles';
+import { hubBtnPrimary, hubLink } from '@/lib/hub-styles';
 import type { ElectionPosition, ElectionResultsPayload } from '@/lib/election-types';
 import { apiFetch, ApiClientError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -52,7 +52,14 @@ export default function ElectionDetailPage() {
           setSelected(map);
         }
       })
-      .catch(() => setData(null));
+      .catch((err) => {
+        if (err instanceof ApiClientError && err.code === 'ELECTION_SCHEMA_INCOMPLETE') {
+          setError(err.message);
+        } else {
+          setError(err instanceof ApiClientError ? err.message : 'Failed to load');
+        }
+        setData(null);
+      });
   }, [id]);
 
   useEffect(() => {
@@ -80,6 +87,19 @@ export default function ElectionDetailPage() {
       : selectedCount >= 1);
 
   if (!data) {
+    if (error) {
+      return (
+        <div>
+          <Link href="/hub/elections" className="hub-link inline-flex items-center gap-1 text-sm">
+            <IconChevronLeft />
+            All elections
+          </Link>
+          <HubAlert variant="error" className="mt-6">
+            {error}
+          </HubAlert>
+        </div>
+      );
+    }
     return <SpinnerCenter label="Loading election…" />;
   }
 

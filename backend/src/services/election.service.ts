@@ -1,6 +1,26 @@
 import { getSupabase } from '../config/supabase.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../utils/errors.js';
 
+type SupabaseErrorLike = { code?: string; message?: string };
+
+/** Maps missing election_positions / view errors to an actionable admin message. */
+function rethrowElectionDbError(error: SupabaseErrorLike): never {
+  const msg = error.message ?? '';
+  if (
+    error.code === '42P01' ||
+    error.code === '42703' ||
+    msg.includes('election_positions') ||
+    msg.includes('position_id') ||
+    msg.includes('elections_with_status')
+  ) {
+    throw new ValidationError(
+      'Election schema is incomplete. Run MANUAL_SETUP §2.22.1 in the Supabase SQL Editor, then retry.',
+      'ELECTION_SCHEMA_INCOMPLETE',
+    );
+  }
+  throw error;
+}
+
 type ElectionStatus = 'active' | 'upcoming' | 'completed';
 
 interface ElectionRow {
@@ -46,7 +66,8 @@ async function getElectionRow(electionId: string): Promise<ElectionRow & { statu
     .eq('id', electionId)
     .maybeSingle();
 
-  if (error || !data) throw new NotFoundError('Election not found');
+  if (error) rethrowElectionDbError(error);
+  if (!data) throw new NotFoundError('Election not found');
   const status = (data.status as ElectionStatus) ?? computeStatus(data.start_date, data.end_date);
   return { ...data, status };
 }
@@ -86,7 +107,7 @@ async function fetchPositions(electionId: string): Promise<PositionRow[]> {
     .order('sort_order', { ascending: true })
     .order('title', { ascending: true });
 
-  if (error) throw error;
+  if (error) rethrowElectionDbError(error);
   return data ?? [];
 }
 
@@ -97,7 +118,7 @@ async function fetchCandidates(electionId: string): Promise<CandidateRow[]> {
     .eq('election_id', electionId)
     .order('created_at', { ascending: true });
 
-  if (error) throw error;
+  if (error) rethrowElectionDbError(error);
   return data ?? [];
 }
 
