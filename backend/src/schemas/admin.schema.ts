@@ -18,6 +18,7 @@ export const patchMemberSchema = z.object({
   role: z.enum(USER_ROLES).optional(),
   is_active: z.boolean().optional(),
   academic_status: z.enum(ACADEMIC_STATUSES).optional(),
+  can_issue_pins: z.boolean().optional(),
 });
 
 export const assignExecutiveSchema = z.object({

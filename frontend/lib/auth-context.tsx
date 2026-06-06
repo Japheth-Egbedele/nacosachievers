@@ -13,6 +13,7 @@ export interface AuthUser {
   last_name?: string;
   display_name?: string;
   matric_number?: string;
+  can_issue_pins?: boolean;
 }
 
 interface AuthContextValue {
@@ -23,6 +24,7 @@ interface AuthContextValue {
   refreshUser: () => Promise<void>;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  canIssuePins: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -81,10 +83,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isSuperAdmin = user?.role === 'super_admin';
   const isAdmin = isSuperAdmin || user?.role === 'executive';
+  const canIssuePins = isSuperAdmin || Boolean(user?.can_issue_pins);
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, logout, refreshUser, isAdmin, isSuperAdmin }}
+      value={{ user, loading, login, logout, refreshUser, isAdmin, isSuperAdmin, canIssuePins }}
     >
       {children}
     </AuthContext.Provider>

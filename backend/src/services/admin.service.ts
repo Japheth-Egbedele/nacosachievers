@@ -60,7 +60,12 @@ export async function getMemberDetail(memberId: string) {
  */
 export async function patchMember(
   memberId: string,
-  patch: { role?: UserRole; is_active?: boolean; academic_status?: AcademicStatus },
+  patch: {
+    role?: UserRole;
+    is_active?: boolean;
+    academic_status?: AcademicStatus;
+    can_issue_pins?: boolean;
+  },
 ) {
   const { data: existing } = await getSupabase()
     .from('users')
@@ -73,6 +78,7 @@ export async function patchMember(
   if (patch.role !== undefined) update.role = patch.role;
   if (patch.is_active !== undefined) update.is_active = patch.is_active;
   if (patch.academic_status !== undefined) update.academic_status = patch.academic_status;
+  if (patch.can_issue_pins !== undefined) update.can_issue_pins = patch.can_issue_pins;
 
   const { data, error } = await getSupabase()
     .from('users')

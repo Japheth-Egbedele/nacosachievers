@@ -10,8 +10,8 @@ const jsonHandler = (_req: unknown, res: { status: (c: number) => { json: (b: un
 };
 
 export const authRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
+  windowMs: 60 * 60 * 1000,
+  max: 3,
   standardHeaders: true,
   legacyHeaders: false,
   handler: jsonHandler,
@@ -19,7 +19,23 @@ export const authRateLimiter = rateLimit({
 
 export const loginRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: jsonHandler,
+});
+
+export const registerRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: jsonHandler,
+});
+
+export const electionReadRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
   standardHeaders: true,
   legacyHeaders: false,
   handler: jsonHandler,

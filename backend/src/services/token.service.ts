@@ -33,13 +33,12 @@ export function verifyAccessToken(token: string): JwtPayload {
 
 /**
  * Signs a short-lived onboarding token after PIN validation.
- * @param matricNumber Matric number from PIN record
- * @returns Onboarding JWT
+ * @param pinId Onboarding PIN row id
  */
-export function signOnboardingToken(matricNumber: string): string {
+export function signOnboardingToken(pinId: string): string {
   const payload: OnboardingTokenPayload = {
-    sub: matricNumber,
-    matric_number: matricNumber,
+    sub: pinId,
+    pin_id: pinId,
     type: 'onboarding',
   };
   return jwt.sign(payload, env.REFRESH_TOKEN_SECRET, {
@@ -50,14 +49,14 @@ export function signOnboardingToken(matricNumber: string): string {
 /**
  * Verifies onboarding token from PIN step.
  * @param token Onboarding JWT
- * @returns Matric number
+ * @returns PIN row id
  */
 export function verifyOnboardingToken(token: string): string {
   const payload = jwt.verify(token, env.REFRESH_TOKEN_SECRET) as OnboardingTokenPayload;
-  if (payload.type !== 'onboarding') {
+  if (payload.type !== 'onboarding' || !payload.pin_id) {
     throw new Error('Invalid onboarding token');
   }
-  return payload.matric_number;
+  return payload.pin_id;
 }
 
 /**

@@ -20,6 +20,7 @@ router.get('/members/:id', catchAsync(adminController.getMember));
 router.patch('/members/:id', validate(patchMemberSchema), catchAsync(adminController.patchMember));
 router.get('/analytics', catchAsync(adminController.getAnalytics));
 router.get('/executives', catchAsync(adminController.listExecutives));
+router.get('/audit-logs', catchAsync(adminController.listAuditLogs));
 
 router.post(
   '/executives/assign',

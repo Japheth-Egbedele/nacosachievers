@@ -14,47 +14,61 @@ Set `NEXT_PUBLIC_API_URL=http://localhost:3000` in `frontend/.env.local`.
 
 ## Database
 
-1. Run all SQL in [MANUAL_SETUP.md](./MANUAL_SETUP.md) including **§2.22 Elections**.
+1. Run all SQL in [MANUAL_SETUP.md](./MANUAL_SETUP.md) including **§2.6.1** (platform migrations), **§2.19.1** (staff role), and **§2.22 Elections**.
 2. Seed super admin (§2.19).
 
 ## How hub onboarding works
 
-1. **Super admin** issues a PIN (Hub → **PINs**, or `POST /api/v1/admin/pins/generate`) for the person’s **ID number** (matric or staff ID).
-2. **Student or staff** opens `/hub/register` → enters ID number + 8-character PIN → name, email, password.
+### Students
+
+1. **Super admin** or a delegated **PIN issuer** (`can_issue_pins`) issues a PIN for the student’s **ID number** (matric).
+2. Student opens `/hub/register` → **Student** tab → ID number + 8-character PIN → name, email, password.
 3. User **verifies email** (link from Resend, or `/hub/verify-email` with token).
 4. User **logs in** at `/hub/login` → can vote in **Elections** when an election is active.
 
-Executives can manage **elections** but **cannot** generate PINs (super_admin only).
+### Delegated PIN issuers
+
+1. Super admin → **Admin → Members** → enable **Can issue PINs** on a trusted member (e.g. course rep).
+2. That user sees **Issue PINs** in the Hub nav (PIN-only admin — not full executive access).
+3. They can generate **student** PINs only. **Staff** PINs remain **super_admin only**.
+
+Executives manage **elections** and the rest of admin; they do **not** get PIN access unless also granted `can_issue_pins` or they are super_admin.
 
 ## Staff / lecturer onboarding
 
-Department staff and lecturers use the **same PIN flow** as students but register with `role = staff`.
+Department staff and lecturers register with `role = staff` using a **work email + PIN** (not matric).
 
-1. Run **MANUAL_SETUP §2.19.1** in Supabase if the `staff` enum value is not yet added.
-2. Super admin → **PINs** → enter **ID number** (matric or staff ID) → set level to **Staff (lecturer / department staff)** → generate PIN.
-3. Staff opens `/hub/register` → ID number + PIN → email, password → verify email → can vote in elections.
-4. Staff do **not** see the Admin nav (unless promoted to executive separately).
+1. Run **MANUAL_SETUP §2.19.1** and **§2.6.1** in Supabase if not already applied.
+2. **Super admin only** → **PINs** → **Staff** mode → enter **work email** → generate PIN.
+3. Staff opens `/hub/register` → **Staff** tab → work email + PIN → name, password → verify email → can vote in elections.
+4. Staff do **not** see Admin nav unless promoted to executive or granted PIN issuer separately.
 
 **Not the same as:** vault **`lecturers`** (course roster) or CMS **`faculty_staff`** (About page) — those are separate directories, not hub logins.
 
 ### Staff test account (PIN flow)
 
-Same as member Option A, but use `level_of_entry: "staff"` in the PIN request:
-
 ```bash
 curl -X POST http://localhost:3000/api/v1/admin/pins/generate \
-  -H "Authorization: Bearer YOUR_ADMIN_ACCESS_TOKEN" \
+  -H "Authorization: Bearer YOUR_SUPER_ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"matric_number":"STAFF001","level_of_entry":"staff"}'
+  -d '{"staff_email":"lecturer@achievers.edu.ng","level_of_entry":"staff"}'
 ```
 
 After registration, confirm `users.role = staff` and the account can vote when email is verified.
+
+## Profile & account deletion
+
+- `/hub/profile` — edit display name, bio, socials; change password; upload photo.
+- **Delete account** — requires current password; deactivates the user (`DELETE /users/me`).
+- **Forgot password** — `/hub/forgot-password` → email link → `/hub/reset-password`.
 
 ## Test accounts
 
 ### Admin portal
 
-Executives and super admins see **Admin** in the Hub nav (`/hub/admin`) — overview, members, vault, elections, wallet, CMS, etc. PINs and site settings are **super_admin only**.
+Executives and super admins see **Admin** in the Hub nav (`/hub/admin`) — overview, members, vault, elections, wallet, CMS, audit log, etc.
+
+**PINs** and **Settings** are **super_admin only** for staff PINs and site settings. Delegated issuers (`can_issue_pins`) see **Issue PINs** only.
 
 ### Admin (elections manager)
 
@@ -125,8 +139,8 @@ All three rows can share the same hash if they share the password `TestPass123!`
    - Under each position, add **contestants** (two or more per race).
    - Leave **require all positions** checked so voters must pick one per post.
 3. As a **student account** (member, staff, or executive — not super_admin): `/hub/elections` → open election → pick one contestant per position → **Review & submit ballot**.
-4. Confirm second submit returns an error; **Results** show winners and percentages **per position** (not global).
-5. Admin **Results & analytics** tab: turnout, ballots cast, per-position bars.
+4. Confirm second submit returns an error; **Results** tab appears only after the election is **completed** (not while voting is open).
+5. Admin **Results & analytics** tab: NUESA-style report, extended analytics, share link at `/hub/elections/:id/results` (public, no login).
 
 ### Election detail returns 500
 

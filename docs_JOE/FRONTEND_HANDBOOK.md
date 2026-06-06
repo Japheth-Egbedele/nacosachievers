@@ -122,10 +122,16 @@ Roles: `guest` (no token), `member`, `alumni`, `staff`, `executive`, `super_admi
 | `/hub/careers/submit` | Submit internship | Member+ |
 | `/hub/careers/mine` | My submissions | Member+ |
 | `/hub/elections`, `/hub/elections/:id` | Chapter elections & ballot | Member+ (verified email) |
+| `/hub/elections/:id/results` | Public shareable results (completed elections only) | Public |
+| `/hub/admin` | Admin overview | `executive` or `super_admin` |
+| `/hub/admin/pins` | Issue onboarding PINs | `super_admin` or `can_issue_pins` |
+| `/hub/admin/audit` | Security audit log | `executive` or `super_admin` |
 | `/hub/admin/elections` | Manage elections & candidates | `executive` or `super_admin` |
-| `/hub/admin/*` | Admin portal | `executive` or `super_admin` |
+| `/hub/admin/*` | Other admin modules | `executive` or `super_admin` |
 
 **Minimal launch:** public `/` is coming-soon; build Hub auth + elections first — see [DEV_TESTING.md](./DEV_TESTING.md).
+
+**PIN issuers:** Members with `can_issue_pins = true` (set by super admin on **Members**) see **Issue PINs** only — not full admin. Staff PINs require super admin.
 
 **Note:** `faculty_staff` (About page) and `lecturers` (Vault course roster) are **different data** — do not merge in UI.
 
@@ -161,6 +167,7 @@ Legend: **Public** = no Bearer token · **Auth** = member+ · **Admin** = execut
 | GET | `/users/me` | Auth | Includes **`unread_notifications_count`**, **`unread_messages_count`**, wallet balance |
 | PATCH | `/users/me` | Auth | display_name, bio, socials, notification_prefs |
 | PATCH | `/users/me/password` | Auth | |
+| DELETE | `/users/me` | Auth | Body: `{ password }` — deactivates account |
 | POST | `/users/me/photo` | Auth | multipart → public-images |
 | DELETE | `/users/me/photo` | Auth | |
 | GET | `/users/:id/profile` | Public/Auth | Respects visibility |
@@ -231,11 +238,21 @@ Grouped by portal section — full list in [BUILD_PLAN.md](./BUILD_PLAN.md) Phas
 
 Highlights for FE admin UI:
 
-- PINs, members, analytics, settings (`super_admin` for settings/PINs)
+- **PINs** — `super_admin` or delegated `can_issue_pins` (student PINs only unless super_admin); staff PINs use work email
+- **Members** — role/status; super_admin toggles **Can issue PINs**
+- **Audit log** — `GET /admin/audit-logs` (requires MANUAL_SETUP §2.6.1)
+- Analytics, settings (`super_admin` for settings)
 - Vault pending queue, course CRUD, lecturer CRUD, teaching assignments
+- Elections — live stats polling; NUESA-style results report + public share URL
 - Yearbook editions, slots, rebuild PDF
 - Careers verification queue
 - Marketplace, events, CMS `PUT`, blog CRUD, gallery, faculty_staff, announcements
+
+### Elections (member + public)
+
+| Method | Path | Access | Notes |
+|--------|------|--------|-------|
+| GET | `/elections/:id/public-results` | **Public** | Only when election `status = completed`; no auth |
 
 ---
 

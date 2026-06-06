@@ -3,6 +3,7 @@ import { HTTP_STATUS } from '../constants/http.js';
 import { ValidationError } from '../utils/errors.js';
 import { sendPaginated, sendSuccess } from '../utils/response.js';
 import * as userService from '../services/user.service.js';
+import * as auditService from '../services/audit.service.js';
 
 /**
  * GET /users/me
@@ -45,6 +46,22 @@ export async function changePassword(req: Request, res: Response): Promise<void>
   };
   await userService.changePassword(req.user!.id, current_password, new_password);
   sendSuccess(res, null, HTTP_STATUS.OK, 'Password updated');
+}
+
+/**
+ * DELETE /users/me
+ */
+export async function deleteMe(req: Request, res: Response): Promise<void> {
+  const { password } = req.body as { password: string };
+  await userService.deactivateSelf(req.user!.id, password);
+  await auditService.logAudit({
+    actorId: req.user!.id,
+    action: 'user_deactivated_self',
+    entityType: 'user',
+    entityId: req.user!.id,
+    ipAddress: req.ip,
+  });
+  sendSuccess(res, null, HTTP_STATUS.OK, 'Account deactivated');
 }
 
 /**

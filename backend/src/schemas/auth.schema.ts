@@ -1,8 +1,15 @@
 import { z } from 'zod';
 
-export const validatePinSchema = z.object({
+const pinCode = z.string().length(8);
+
+export const validatePinStudentSchema = z.object({
   matric_number: z.string().min(3).max(32),
-  pin: z.string().length(8),
+  pin: pinCode,
+});
+
+export const validatePinStaffSchema = z.object({
+  staff_email: z.string().email(),
+  pin: pinCode,
 });
 
 export const registerSchema = z.object({
@@ -43,9 +50,17 @@ export const correctPendingEmailSchema = z.object({
   new_email: z.string().email(),
 });
 
-export const generatePinSchema = z.object({
+export const generatePinStudentSchema = z.object({
   matric_number: z.string().min(3).max(32),
   department_id: z.string().uuid().optional(),
-  level_of_entry: z.enum(['100', '200', '300', '400', 'staff']).optional(),
+  level_of_entry: z.enum(['100', '200', '300', '400']).optional(),
   admission_type: z.enum(['regular', 'transfer', 'readmission']).optional(),
 });
+
+export const generatePinStaffSchema = z.object({
+  staff_email: z.string().email(),
+  department_id: z.string().uuid().optional(),
+  admission_type: z.enum(['regular', 'transfer', 'readmission']).optional(),
+});
+
+export const validatePinSchema = z.union([validatePinStudentSchema, validatePinStaffSchema]);

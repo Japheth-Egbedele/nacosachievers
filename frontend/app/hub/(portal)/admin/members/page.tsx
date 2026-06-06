@@ -7,6 +7,7 @@ import HubAlert from '@/app/hub/components/ui/HubAlert';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
 import { hubLink } from '@/lib/hub-styles';
 import { apiFetch, apiFetchPaginated, ApiClientError } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 
 interface Member {
   id: string;
@@ -19,11 +20,14 @@ interface Member {
   is_email_verified: boolean;
   is_active: boolean;
   academic_status: string;
+  can_issue_pins?: boolean;
 }
 
 export default function AdminMembersPage() {
+  const { isSuperAdmin } = useAuth();
   const [search, setSearch] = useState('');
   const [items, setItems] = useState<Member[]>([]);
+  const [pinFlags, setPinFlags] = useState<Record<string, boolean>>({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -32,7 +36,14 @@ export default function AdminMembersPage() {
     const q = search.trim() ? `?search=${encodeURIComponent(search.trim())}&limit=50` : '?limit=50';
     setLoading(true);
     apiFetchPaginated<Member>(`/admin/members${q}`)
-      .then((r) => setItems(r.items))
+      .then((r) => {
+        setItems(r.items);
+        const flags: Record<string, boolean> = {};
+        for (const m of r.items) {
+          flags[m.id] = Boolean(m.can_issue_pins);
+        }
+        setPinFlags(flags);
+      })
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
   }, [search]);
@@ -57,6 +68,11 @@ export default function AdminMembersPage() {
     }
   }
 
+  async function togglePinIssuer(id: string, next: boolean) {
+    setPinFlags((prev) => ({ ...prev, [id]: next }));
+    await patchMember(id, { can_issue_pins: next });
+  }
+
   if (loading && items.length === 0) {
     return <SpinnerCenter />;
   }
@@ -65,7 +81,7 @@ export default function AdminMembersPage() {
     <div>
       <AdminPageHeader
         title="Members"
-        description="Search members, toggle active status, or verify email for test accounts."
+        description="Search members, toggle active status, or grant PIN issuance rights."
       />
       {error && <HubAlert variant="error" className="mb-4">{error}</HubAlert>}
       <HubAdminSearch
@@ -82,6 +98,7 @@ export default function AdminMembersPage() {
               <th className="px-4 py-3 font-medium">Name</th>
               <th className="px-4 py-3 font-medium">Role</th>
               <th className="px-4 py-3 font-medium">Verified</th>
+              {isSuperAdmin && <th className="px-4 py-3 font-medium">Issue PINs</th>}
               <th className="px-4 py-3 font-medium">Active</th>
             </tr>
           </thead>
@@ -107,6 +124,22 @@ export default function AdminMembersPage() {
                   )}
                 </td>
                 <td className="px-4 py-3">{m.is_email_verified ? 'Yes' : 'No'}</td>
+                {isSuperAdmin && (
+                  <td className="px-4 py-3">
+                    <label className="inline-flex cursor-pointer items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={pinFlags[m.id] ?? false}
+                        disabled={busyId === m.id || m.role === 'super_admin'}
+                        onChange={(e) => void togglePinIssuer(m.id, e.target.checked)}
+                        className="h-4 w-4 rounded border-[var(--color-hub-border)] text-[var(--color-brand)]"
+                      />
+                      <span className="text-xs text-[var(--color-hub-text-secondary)]">
+                        Can issue PINs
+                      </span>
+                    </label>
+                  </td>
+                )}
                 <td className="px-4 py-3">
                   <button
                     type="button"
@@ -127,12 +160,6 @@ export default function AdminMembersPage() {
           </p>
         )}
       </div>
-      <p className="mt-3 text-xs text-[var(--color-hub-text-secondary)]">
-        To mark email verified for test voters, run SQL:{' '}
-        <code className="rounded bg-[var(--color-hub-surface-muted)] px-1">
-          update users set is_email_verified = true where matric_number = &apos;…&apos;;
-        </code>
-      </p>
     </div>
   );
 }

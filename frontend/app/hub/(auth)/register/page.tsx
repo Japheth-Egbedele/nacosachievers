@@ -7,15 +7,20 @@ import PasswordInput from '@/app/components/PasswordInput';
 import HubAlert from '@/app/hub/components/ui/HubAlert';
 import HubAuthLayout from '@/app/hub/components/ui/HubAuthLayout';
 import HubField, { HubTextInput } from '@/app/hub/components/ui/HubField';
+import HubPillTabs from '@/app/hub/components/ui/HubPillTabs';
 import { hubBtnGhost, hubBtnPrimary } from '@/lib/hub-styles';
 import { apiFetch, ApiClientError } from '@/lib/api';
 import { pinValidationErrorMessage } from '@/lib/pin-errors';
 
+type RegisterMode = 'student' | 'staff';
+
 export default function HubRegisterPage() {
   const router = useRouter();
   const [step, setStep] = useState<'pin' | 'details'>('pin');
+  const [mode, setMode] = useState<RegisterMode>('student');
   const [onboardingToken, setOnboardingToken] = useState('');
   const [matric, setMatric] = useState('');
+  const [staffEmail, setStaffEmail] = useState('');
   const [pin, setPin] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -29,12 +34,14 @@ export default function HubRegisterPage() {
     setError('');
     setBusy(true);
     try {
+      const body =
+        mode === 'student'
+          ? { matric_number: matric.trim(), pin }
+          : { staff_email: staffEmail.trim().toLowerCase(), pin };
+
       const data = await apiFetch<{ onboarding_token: string }>(
         '/auth/validate-pin',
-        {
-          method: 'POST',
-          body: JSON.stringify({ matric_number: matric.trim(), pin }),
-        },
+        { method: 'POST', body: JSON.stringify(body) },
         false,
       );
       setOnboardingToken(data.onboarding_token);
@@ -82,7 +89,7 @@ export default function HubRegisterPage() {
       subtitle={
         step === 'pin' ? (
           <>
-            Step 1 of 2 — verify your chapter PIN. Students and department staff use the same flow.{' '}
+            Step 1 of 2 — verify your chapter PIN.{' '}
             <Link href="/hub/login" className="font-medium text-emerald-700 hover:underline">
               Sign in
             </Link>
@@ -95,18 +102,45 @@ export default function HubRegisterPage() {
       {step === 'pin' ? (
         <form onSubmit={validatePin} className="mt-8 space-y-5">
           {error && <HubAlert variant="error">{error}</HubAlert>}
-          <HubField
-            label="ID number"
-            hint="Your matric number or staff ID (e.g. AU23AY4578)"
-          >
-            <HubTextInput
-              required
-              value={matric}
-              onChange={(e) => setMatric(e.target.value)}
-              placeholder="AU23AY4578"
-              autoComplete="off"
-            />
-          </HubField>
+
+          <HubPillTabs
+            tabs={[
+              { key: 'student', label: 'Student' },
+              { key: 'staff', label: 'Staff' },
+            ]}
+            active={mode}
+            onChange={(key) => setMode(key as RegisterMode)}
+          />
+
+          {mode === 'student' ? (
+            <HubField
+              label="Matric number"
+              hint="Your university ID (e.g. AU23AY4578)"
+            >
+              <HubTextInput
+                required
+                value={matric}
+                onChange={(e) => setMatric(e.target.value)}
+                placeholder="AU23AY4578"
+                autoComplete="off"
+              />
+            </HubField>
+          ) : (
+            <HubField
+              label="Staff email"
+              hint="The institutional email your PIN was issued to"
+            >
+              <HubTextInput
+                type="email"
+                required
+                value={staffEmail}
+                onChange={(e) => setStaffEmail(e.target.value)}
+                placeholder="you@achievers.edu.ng"
+                autoComplete="email"
+              />
+            </HubField>
+          )}
+
           <HubField label="Onboarding PIN" hint="8-character code from your admin">
             <HubTextInput
               required

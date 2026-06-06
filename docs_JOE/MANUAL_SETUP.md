@@ -800,7 +800,47 @@ If your database was created before the `staff` user role existed, run once in *
 ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'staff';
 ```
 
-**Staff hub onboarding:** Super admin issues a PIN with **level of entry = Staff** and the lecturer’s **ID number** (matric or staff ID; stored in the `matric_number` column). Registration at `/hub/register` creates a `users` row with `role = staff`. This is separate from the vault **`lecturers`** table (course roster) and CMS **`faculty_staff`** table (About page).
+**Staff hub onboarding:** Super admin issues a PIN with **level of entry = Staff** and the lecturer’s **work email** (stored in `onboarding_pins.staff_email`). Registration at `/hub/register` creates a `users` row with `role = staff`. This is separate from the vault **`lecturers`** table (course roster) and CMS **`faculty_staff`** table (About page).
+
+### 2.6.1 — Platform migrations (existing deployments)
+
+Run in **Supabase → SQL Editor** (safe to re-run where noted):
+
+```sql
+-- Staff email on onboarding PINs
+alter table onboarding_pins add column if not exists staff_email text;
+
+-- Delegated PIN issuers (course reps)
+alter table users add column if not exists can_issue_pins boolean not null default false;
+
+-- Atomic one-ballot-per-voter
+create table if not exists election_ballots (
+  id uuid primary key default uuid_generate_v4(),
+  election_id uuid not null references elections(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  cast_at timestamptz not null default now(),
+  unique (election_id, user_id)
+);
+
+create index if not exists idx_election_ballots_election on election_ballots(election_id);
+
+-- Audit trail
+create table if not exists audit_logs (
+  id uuid primary key default uuid_generate_v4(),
+  actor_id uuid references users(id),
+  action text not null,
+  entity_type text,
+  entity_id uuid,
+  metadata jsonb default '{}',
+  ip_address text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_audit_logs_created on audit_logs(created_at desc);
+create index if not exists idx_audit_logs_action on audit_logs(action, created_at desc);
+```
+
+Enable RLS on new tables with service-role-only policies matching other hub tables.
 
 ---
 

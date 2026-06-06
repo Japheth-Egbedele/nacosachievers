@@ -23,3 +23,8 @@ export async function castVote(req: Request, res: Response): Promise<void> {
   const data = await electionService.castVote(req.params.id!, req.user!.id, candidate_ids);
   sendSuccess(res, data, 200, 'Ballot submitted and locked');
 }
+
+export async function publicResults(req: Request, res: Response): Promise<void> {
+  const data = await electionService.getPublicElectionResults(req.params.id!);
+  sendSuccess(res, data);
+}

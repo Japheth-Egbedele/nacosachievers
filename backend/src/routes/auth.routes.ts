@@ -4,6 +4,7 @@ import { validate } from '../middleware/validate.js';
 import {
   authRateLimiter,
   loginRateLimiter,
+  registerRateLimiter,
 } from '../middleware/rate-limiter.js';
 import {
   correctPendingEmailSchema,
@@ -28,7 +29,7 @@ router.post(
 
 router.post(
   '/register',
-  authRateLimiter,
+  registerRateLimiter,
   validate(registerSchema),
   catchAsync(authController.register),
 );

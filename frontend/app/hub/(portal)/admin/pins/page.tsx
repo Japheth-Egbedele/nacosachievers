@@ -1,29 +1,42 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import CopyButton from '@/app/components/CopyButton';
+import HubAlert from '@/app/hub/components/ui/HubAlert';
+import HubField, { HubTextInput } from '@/app/hub/components/ui/HubField';
+import HubPageHeader from '@/app/hub/components/ui/HubPageHeader';
+import HubPillTabs from '@/app/hub/components/ui/HubPillTabs';
+import { hubBtnPrimary } from '@/lib/hub-styles';
 import { apiFetch, ApiClientError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
+type PinMode = 'student' | 'staff';
+
+type IssuedPin = {
+  id: string;
+  pin: string;
+  matric_number: string;
+  staff_email?: string;
+  level_of_entry?: string;
+};
+
 export default function AdminPinsPage() {
-  const { isSuperAdmin, loading } = useAuth();
+  const { isSuperAdmin, canIssuePins, loading } = useAuth();
   const router = useRouter();
+  const [mode, setMode] = useState<PinMode>('student');
   const [matric, setMatric] = useState('');
+  const [staffEmail, setStaffEmail] = useState('');
   const [level, setLevel] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [issued, setIssued] = useState<{
-    matric_number: string;
-    pin: string;
-    id: string;
-    level_of_entry?: string;
-  } | null>(null);
+  const [issued, setIssued] = useState<IssuedPin | null>(null);
+
+  const allowed = canIssuePins;
 
   useEffect(() => {
-    if (!loading && !isSuperAdmin) router.replace('/hub/elections');
-  }, [loading, isSuperAdmin, router]);
+    if (!loading && !allowed) router.replace('/hub/elections');
+  }, [loading, allowed, router]);
 
   async function handleGenerate(e: React.FormEvent) {
     e.preventDefault();
@@ -31,19 +44,21 @@ export default function AdminPinsPage() {
     setIssued(null);
     setBusy(true);
     try {
-      const data = await apiFetch<{
-        id: string;
-        pin: string;
-        matric_number: string;
-      }>('/admin/pins/generate', {
+      const body =
+        mode === 'staff'
+          ? { staff_email: staffEmail.trim().toLowerCase() }
+          : {
+              matric_number: matric.trim().toUpperCase(),
+              ...(level ? { level_of_entry: level } : {}),
+            };
+
+      const data = await apiFetch<IssuedPin>('/admin/pins/generate', {
         method: 'POST',
-        body: JSON.stringify({
-          matric_number: matric.trim().toUpperCase(),
-          ...(level ? { level_of_entry: level } : {}),
-        }),
+        body: JSON.stringify(body),
       });
       setIssued({ ...data, level_of_entry: level || undefined });
       setMatric('');
+      setStaffEmail('');
       setLevel('');
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Failed to generate PIN');
@@ -52,105 +67,117 @@ export default function AdminPinsPage() {
     }
   }
 
+  const idLabel = issued?.staff_email ?? issued?.matric_number ?? '';
   const copyAllText = issued
-    ? `NACOS Hub onboarding\nID number (matric or staff ID): ${issued.matric_number}\nPIN: ${issued.pin}\nRegister: ${typeof window !== 'undefined' ? window.location.origin : ''}/hub/register`
+    ? `NACOS Hub onboarding\nID: ${idLabel}\nPIN: ${issued.pin}\nRegister: ${typeof window !== 'undefined' ? window.location.origin : ''}/hub/register`
     : '';
 
-  if (loading || !isSuperAdmin) return null;
+  if (loading || !allowed) return null;
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Issue onboarding PINs</h1>
-      <p className="mt-2 max-w-xl text-sm text-zinc-600 dark:text-zinc-400">
-        Only <strong>super admins</strong> can create PINs. Share ID number + PIN once (matric or staff ID).
-        Students register as <strong>member</strong>; choose level <strong>Staff</strong> for lecturers
-        and department staff. Register at{' '}
-        <Link href="/hub/register" className="font-medium text-emerald-600 underline">
-          /hub/register
-        </Link>
-        , then verify email before voting.
-      </p>
+    <div className="mx-auto max-w-2xl">
+      <HubPageHeader
+        title="Issue onboarding PINs"
+        description="Share ID + PIN once. Members register at /hub/register then verify email before voting."
+      />
 
-      <form
-        onSubmit={handleGenerate}
-        className="mt-8 max-w-md space-y-4 rounded-xl border border-emerald-200/80 bg-white p-6 shadow-sm dark:border-emerald-900 dark:bg-zinc-900"
-      >
-        {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-        <div>
-          <label className="block text-sm font-medium">ID number</label>
-          <p className="mt-0.5 text-xs text-zinc-500">Matric number or staff ID</p>
-          <input
-            required
-            value={matric}
-            onChange={(e) => setMatric(e.target.value)}
-            placeholder="e.g. AU23AY4578"
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-zinc-600 dark:bg-zinc-800"
+      {error && <HubAlert variant="error" className="mb-6">{error}</HubAlert>}
+
+      <form onSubmit={handleGenerate} className="hub-card space-y-5 p-6">
+        {isSuperAdmin ? (
+          <HubPillTabs
+            tabs={[
+              { key: 'student', label: 'Student' },
+              { key: 'staff', label: 'Staff' },
+            ]}
+            active={mode}
+            onChange={(key) => setMode(key as PinMode)}
           />
-        </div>
-        <div>
-          <label className="block text-sm font-medium">Level of entry (optional)</label>
-          <select
-            value={level}
-            onChange={(e) => setLevel(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 dark:border-zinc-600 dark:bg-zinc-800"
-          >
-            <option value="">— student (member) —</option>
-            <option value="100">100</option>
-            <option value="200">200</option>
-            <option value="300">300</option>
-            <option value="400">400</option>
-            <option value="staff">Staff (lecturer / department staff)</option>
-          </select>
-        </div>
-        <button
-          type="submit"
-          disabled={busy}
-          className="w-full rounded-lg bg-emerald-600 py-2.5 font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
-        >
+        ) : (
+          <p className="text-sm text-[var(--color-hub-text-secondary)]">
+            Generate student onboarding PINs for new members.
+          </p>
+        )}
+
+        {mode === 'staff' && isSuperAdmin ? (
+          <HubField label="Staff email" hint="Institutional email for lecturers and department staff">
+            <HubTextInput
+              type="email"
+              required
+              value={staffEmail}
+              onChange={(e) => setStaffEmail(e.target.value)}
+              placeholder="lecturer@achievers.edu.ng"
+            />
+          </HubField>
+        ) : (
+          <>
+            <HubField label="Matric number" hint="University ID for the new member">
+              <HubTextInput
+                required
+                value={matric}
+                onChange={(e) => setMatric(e.target.value)}
+                placeholder="AU23AY4578"
+              />
+            </HubField>
+            <HubField label="Level of entry (optional)">
+              <select
+                value={level}
+                onChange={(e) => setLevel(e.target.value)}
+                className="hub-input w-full rounded-xl px-3.5 py-2.5 text-sm"
+              >
+                <option value="">— default —</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+                <option value="300">300</option>
+                <option value="400">400</option>
+              </select>
+            </HubField>
+          </>
+        )}
+
+        <button type="submit" disabled={busy} className={hubBtnPrimary}>
           {busy ? 'Generating…' : 'Generate PIN'}
         </button>
       </form>
 
       {issued && (
-        <div className="mt-8 max-w-md rounded-xl border-2 border-emerald-500 bg-gradient-to-b from-emerald-50 to-white p-6 shadow-md dark:border-emerald-600 dark:from-emerald-950/50 dark:to-zinc-900">
-          <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">
-            Copy now — PIN is shown only once
-          </p>
-
-          <div className="mt-4 rounded-lg border border-emerald-200 bg-white/80 p-4 dark:border-emerald-800 dark:bg-zinc-950/50">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-emerald-700/80">
-                  ID number
-                </p>
-                <p className="text-[10px] text-emerald-700/70">Matric or staff ID</p>
-                <p className="font-mono text-lg font-bold text-emerald-900 dark:text-emerald-100">
-                  {issued.matric_number}
-                </p>
-              </div>
-              <CopyButton value={issued.matric_number} label="Copy ID number" />
-            </div>
+        <div className="hub-card mt-8 overflow-hidden border-2 border-[var(--color-brand)]/40 p-0">
+          <div className="bg-gradient-to-r from-[#0f172a] to-[#047857] px-6 py-5 text-white">
+            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-200/90">
+              One-time credentials
+            </p>
+            <p className="mt-1 text-sm text-emerald-50/90">Copy now — the PIN is shown only once.</p>
           </div>
 
-          <div className="mt-3 rounded-lg border border-emerald-200 bg-white/80 p-4 dark:border-emerald-800 dark:bg-zinc-950/50">
-            <div className="flex items-start justify-between gap-2">
+          <div className="space-y-4 p-6">
+            <div className="hub-card-muted flex items-start justify-between gap-3 p-4">
               <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-emerald-700/80">PIN</p>
-                <p className="font-mono text-2xl font-bold tracking-[0.2em] text-emerald-800 dark:text-emerald-100">
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-hub-muted)]">
+                  {issued.staff_email ? 'Staff email' : 'Matric number'}
+                </p>
+                <p className="font-mono text-lg font-bold text-[var(--color-hub-text)]">{idLabel}</p>
+              </div>
+              <CopyButton value={idLabel} label="Copy ID" />
+            </div>
+
+            <div className="hub-card-muted flex items-start justify-between gap-3 p-4">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-hub-muted)]">
+                  PIN
+                </p>
+                <p className="font-mono text-2xl font-bold tracking-[0.2em] text-[var(--color-brand)]">
                   {issued.pin}
                 </p>
               </div>
               <CopyButton value={issued.pin} label="Copy PIN" />
             </div>
-          </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            <CopyButton value={copyAllText} label="Copy all details" />
-          </div>
+            <CopyButton value={copyAllText} label="Copy all details" className="w-full" />
 
-          <p className="mt-4 text-xs text-emerald-800/70 dark:text-emerald-300/80">
-            Expires in 72 hours if unused.
-          </p>
+            <p className="text-xs text-[var(--color-hub-text-secondary)]">
+              Expires in 72 hours if unused.
+            </p>
+          </div>
         </div>
       )}
     </div>

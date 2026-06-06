@@ -14,6 +14,10 @@ export const changePasswordSchema = z.object({
   new_password: z.string().min(8).max(128),
 });
 
+export const deleteMeSchema = z.object({
+  password: z.string().min(1),
+});
+
 export const alumniQuerySchema = z.object({
   page: z.coerce.number().optional(),
   limit: z.coerce.number().optional(),

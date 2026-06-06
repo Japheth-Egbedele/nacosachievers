@@ -1,17 +1,16 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getSupabase } from '../config/supabase.js';
-import { NotFoundError } from '../utils/errors.js';
+import { NotFoundError, AuthError, ValidationError } from '../utils/errors.js';
 import { assertImageMagic } from '../utils/file-validation.js';
 import * as storageService from './storage.service.js';
 import type { MeResponse, PublicUserProfile, UserRecord } from '../types/user.types.js';
 import { parsePagination, buildMeta } from '../utils/pagination.js';
 import bcrypt from 'bcrypt';
 import { BCRYPT_ROUNDS } from '../constants/auth.js';
-import { AuthError } from '../utils/errors.js';
 import { ERROR_MESSAGES } from '../constants/messages.js';
 
 const USER_COLUMNS =
-  'id, matric_number, email, password_hash, role, first_name, last_name, display_name, bio, profile_photo_url, department_id, level, level_of_entry, year_of_admission, expected_graduation_year, actual_graduation_year, academic_status, admission_type, linkedin_url, github_url, other_social_links, email_visible, wallet_balance, is_email_verified, is_active, notification_prefs, last_login_at, created_at, updated_at';
+  'id, matric_number, email, password_hash, role, first_name, last_name, display_name, bio, profile_photo_url, department_id, level, level_of_entry, year_of_admission, expected_graduation_year, actual_graduation_year, academic_status, admission_type, linkedin_url, github_url, other_social_links, email_visible, wallet_balance, is_email_verified, is_active, can_issue_pins, notification_prefs, last_login_at, created_at, updated_at';
 
 const PUBLIC_COLUMNS =
   'id, first_name, last_name, display_name, bio, profile_photo_url, role, level, expected_graduation_year, actual_graduation_year, linkedin_url, github_url, email_visible, email';
@@ -73,6 +72,7 @@ export async function getMe(userId: string): Promise<MeResponse> {
     email_visible: user.email_visible,
     wallet_balance: user.wallet_balance,
     is_email_verified: user.is_email_verified,
+    can_issue_pins: Boolean((user as UserRecord & { can_issue_pins?: boolean }).can_issue_pins),
     academic_status: user.academic_status,
     admission_type: user.admission_type,
     year_of_admission: user.year_of_admission,
@@ -136,6 +136,38 @@ export async function changePassword(
     .from('users')
     .update({ password_hash: passwordHash, updated_at: new Date().toISOString() })
     .eq('id', userId);
+}
+
+/**
+ * Soft-deactivates the authenticated user's account.
+ */
+export async function deactivateSelf(userId: string, password: string): Promise<void> {
+  const { data } = await getSupabase()
+    .from('users')
+    .select('password_hash, role')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (!data) throw new NotFoundError('User not found');
+  if (data.role === 'super_admin') {
+    throw new ValidationError('Super admin accounts cannot be self-deleted');
+  }
+
+  const valid = await bcrypt.compare(password, data.password_hash);
+  if (!valid) {
+    throw new AuthError(ERROR_MESSAGES.INVALID_CREDENTIALS);
+  }
+
+  await getSupabase()
+    .from('users')
+    .update({ is_active: false, updated_at: new Date().toISOString() })
+    .eq('id', userId);
+
+  await getSupabase()
+    .from('refresh_tokens')
+    .update({ is_revoked: true })
+    .eq('user_id', userId)
+    .eq('is_revoked', false);
 }
 
 /**

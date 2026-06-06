@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import ElectionResultsPanel from '@/app/hub/components/elections/ElectionResultsPanel';
+import ElectionResultsReport from '@/app/hub/components/elections/ElectionResultsReport';
 import { SpinnerCenter } from '@/app/components/Spinner';
 import type { ElectionAnalytics, ElectionPosition } from '@/lib/election-types';
 import { apiFetch, ApiClientError } from '@/lib/api';
@@ -398,10 +398,11 @@ export default function AdminElectionDetailPage() {
 
       {tab === 'results' && results && (
         <div className="mt-8">
-          <ElectionResultsPanel
+          <ElectionResultsReport
+            electionTitle={results.election.title}
+            electionId={results.election.id}
             positions={results.positions}
             analytics={results.analytics}
-            title="Election results"
           />
         </div>
       )}

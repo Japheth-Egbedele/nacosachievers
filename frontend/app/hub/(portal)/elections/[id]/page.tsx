@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import ElectionResultsPanel from '@/app/hub/components/elections/ElectionResultsPanel';
+import ElectionResultsReport from '@/app/hub/components/elections/ElectionResultsReport';
 import { SpinnerCenter } from '@/app/components/Spinner';
 import HubAlert from '@/app/hub/components/ui/HubAlert';
 import { IconChevronLeft } from '@/app/hub/components/ui/HubIcons';
@@ -273,10 +273,11 @@ export default function ElectionDetailPage() {
 
       {showResults && data.results && (
         <div className="mt-10">
-          <ElectionResultsPanel
+          <ElectionResultsReport
+            electionTitle={election.title}
+            electionId={election.id}
             positions={data.results.positions}
             analytics={data.results.analytics}
-            title="Final results"
           />
         </div>
       )}

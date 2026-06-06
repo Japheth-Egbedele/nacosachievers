@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { SpinnerCenter } from '@/app/components/Spinner';
 import { IconChevronLeft } from '@/app/hub/components/ui/HubIcons';
 import { filterAdminNav } from '@/lib/admin-nav';
@@ -13,16 +14,25 @@ function navActive(pathname: string, href: string): boolean {
 }
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
-  const { loading, isAdmin, isSuperAdmin } = useAuth();
+  const { loading, isAdmin, isSuperAdmin, canIssuePins } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const links = filterAdminNav(isSuperAdmin);
+  const pinOnlyIssuer = canIssuePins && !isAdmin;
+  const links = filterAdminNav(isSuperAdmin, canIssuePins, isAdmin);
+  const canAccessAdmin = isAdmin || canIssuePins;
+
+  useEffect(() => {
+    if (loading || !pinOnlyIssuer || !pathname) return;
+    const onPins =
+      pathname === '/hub/admin/pins' || pathname.startsWith('/hub/admin/pins/');
+    if (!onPins) router.replace('/hub/admin/pins');
+  }, [loading, pinOnlyIssuer, pathname, router]);
 
   if (loading) {
     return <SpinnerCenter label="Loading admin…" />;
   }
 
-  if (!isAdmin) {
+  if (!canAccessAdmin) {
     router.replace('/hub/elections');
     return null;
   }

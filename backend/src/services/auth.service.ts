@@ -26,16 +26,17 @@ export interface LoginResult {
 }
 
 /**
- * Validates PIN and returns onboarding token.
- * @param matricNumber Matric number
- * @param pin Plaintext PIN
+ * Validates student or staff PIN and returns onboarding token.
  */
-export async function validatePinAndIssueToken(
-  matricNumber: string,
-  pin: string,
-): Promise<{ onboardingToken: string }> {
-  await pinService.validatePin(matricNumber, pin);
-  return { onboardingToken: tokenService.signOnboardingToken(matricNumber) };
+export async function validatePinAndIssueToken(input: {
+  matricNumber?: string;
+  staffEmail?: string;
+  pin: string;
+}): Promise<{ onboardingToken: string }> {
+  const row = input.staffEmail
+    ? await pinService.validatePinByStaffEmail(input.staffEmail, input.pin)
+    : await pinService.validatePinByMatric(input.matricNumber!, input.pin);
+  return { onboardingToken: tokenService.signOnboardingToken(row.id) };
 }
 
 /**
@@ -49,20 +50,28 @@ export async function registerUser(input: {
   lastName: string;
   displayName?: string;
 }): Promise<{ userId: string; email_sent: boolean }> {
-  const matricNumber = tokenService.verifyOnboardingToken(input.onboardingToken);
-  const activePin = await pinService.getActivePinForMatric(matricNumber);
+  const pinId = tokenService.verifyOnboardingToken(input.onboardingToken);
+  const activePin = await pinService.getActivePinById(pinId);
   if (!activePin) {
     throw new AuthError(ERROR_MESSAGES.INVALID_CREDENTIALS);
   }
 
+  const emailLower = input.email.toLowerCase();
+  const isStaff = activePin.level_of_entry === 'staff' || Boolean(activePin.staff_email);
+
+  if (isStaff && activePin.staff_email && emailLower !== activePin.staff_email) {
+    throw new ValidationError(
+      'Registration email must match the work email on your onboarding PIN',
+    );
+  }
+
   const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
-  const isStaff = activePin.level_of_entry === 'staff';
 
   const { data: user, error } = await getSupabase()
     .from('users')
     .insert({
-      matric_number: matricNumber,
-      email: input.email.toLowerCase(),
+      matric_number: activePin.matric_number,
+      email: emailLower,
       password_hash: passwordHash,
       first_name: input.firstName,
       last_name: input.lastName,
@@ -85,7 +94,7 @@ export async function registerUser(input: {
 
   await pinService.markPinUsed(activePin.id);
 
-  const emailSent = await issueVerificationEmail(user.id, input.email.toLowerCase());
+  const emailSent = await issueVerificationEmail(user.id, emailLower);
 
   return { userId: user.id, email_sent: emailSent };
 }

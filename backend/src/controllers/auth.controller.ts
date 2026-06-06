@@ -36,11 +36,16 @@ function clearRefreshCookie(res: Response): void {
  * POST /auth/validate-pin
  */
 export async function validatePin(req: Request, res: Response): Promise<void> {
-  const { matric_number, pin } = req.body as {
-    matric_number: string;
+  const body = req.body as {
+    matric_number?: string;
+    staff_email?: string;
     pin: string;
   };
-  const result = await authService.validatePinAndIssueToken(matric_number, pin);
+  const result = await authService.validatePinAndIssueToken({
+    matricNumber: body.matric_number,
+    staffEmail: body.staff_email,
+    pin: body.pin,
+  });
   sendSuccess(res, { onboarding_token: result.onboardingToken }, HTTP_STATUS.OK);
 }
 

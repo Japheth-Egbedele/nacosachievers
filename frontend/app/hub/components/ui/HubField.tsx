@@ -2,15 +2,20 @@ import { hubInput, hubLabel } from '@/lib/hub-styles';
 
 type HubFieldProps = {
   label: string;
-  hint?: string;
+  hint?: React.ReactNode;
   children: React.ReactNode;
 };
 
 export default function HubField({ label, hint, children }: HubFieldProps) {
+  const hintIsString = typeof hint === 'string';
+
   return (
     <div>
-      <label className={hubLabel}>{label}</label>
-      {hint && <p className="mt-0.5 text-xs text-zinc-500">{hint}</p>}
+      <div className="flex items-baseline justify-between gap-2">
+        <label className={hubLabel}>{label}</label>
+        {hint && !hintIsString ? hint : null}
+      </div>
+      {hint && hintIsString && <p className="mt-0.5 text-xs text-zinc-500">{hint}</p>}
       <div className="mt-1.5">{children}</div>
     </div>
   );

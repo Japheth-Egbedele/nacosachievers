@@ -8,6 +8,7 @@ import { uploadRateLimiter } from '../middleware/rate-limiter.js';
 import {
   alumniQuerySchema,
   changePasswordSchema,
+  deleteMeSchema,
   updateMeSchema,
 } from '../schemas/user.schema.js';
 import * as usersController from '../controllers/users.controller.js';
@@ -32,6 +33,12 @@ router.patch(
   authMiddleware,
   validate(changePasswordSchema),
   catchAsync(usersController.changePassword),
+);
+router.delete(
+  '/me',
+  authMiddleware,
+  validate(deleteMeSchema),
+  catchAsync(usersController.deleteMe),
 );
 
 router.post(

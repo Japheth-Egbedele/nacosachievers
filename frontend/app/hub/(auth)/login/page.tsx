@@ -69,7 +69,14 @@ function LoginForm() {
             autoComplete="email"
           />
         </HubField>
-        <HubField label="Password">
+        <HubField
+          label="Password"
+          hint={
+            <Link href="/hub/forgot-password" className="hub-link text-xs">
+              Forgot password?
+            </Link>
+          }
+        >
           <PasswordInput
             value={password}
             onChange={setPassword}

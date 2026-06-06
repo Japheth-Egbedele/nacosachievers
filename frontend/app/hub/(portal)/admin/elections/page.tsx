@@ -2,8 +2,10 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { SpinnerCenter } from '@/app/components/Spinner';
+import HubAlert from '@/app/hub/components/ui/HubAlert';
+import HubPageHeader from '@/app/hub/components/ui/HubPageHeader';
 import { apiFetch, ApiClientError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
@@ -16,10 +18,26 @@ interface Election {
   vote_count?: number;
 }
 
+interface LiveStats {
+  stats: {
+    total_users: number;
+    total_elections: number;
+    active_elections: number;
+    total_votes: number;
+  };
+  recent_voters: Array<{
+    full_name: string | null;
+    student_id: string | null;
+    voted_at: string;
+    election_title: string | null;
+  }>;
+}
+
 export default function AdminElectionsPage() {
   const { isAdmin, loading } = useAuth();
   const router = useRouter();
   const [elections, setElections] = useState<Election[]>([]);
+  const [liveStats, setLiveStats] = useState<LiveStats | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -28,21 +46,36 @@ export default function AdminElectionsPage() {
   const [error, setError] = useState('');
   const [dataLoading, setDataLoading] = useState(true);
 
-  useEffect(() => {
-    if (!loading && !isAdmin) router.replace('/hub/elections');
-  }, [loading, isAdmin, router]);
+  const hasActiveElections = elections.some((e) => e.status === 'active');
 
-  const load = () => {
+  const loadElections = useCallback(() => {
     setDataLoading(true);
     apiFetch<{ elections: Election[] }>('/admin/elections')
       .then((d) => setElections(d.elections))
       .catch(() => setElections([]))
       .finally(() => setDataLoading(false));
-  };
+  }, []);
+
+  const loadStats = useCallback(() => {
+    apiFetch<LiveStats>('/admin/elections/stats')
+      .then(setLiveStats)
+      .catch(() => setLiveStats(null));
+  }, []);
 
   useEffect(() => {
-    if (isAdmin) load();
-  }, [isAdmin]);
+    if (!loading && !isAdmin) router.replace('/hub/elections');
+  }, [loading, isAdmin, router]);
+
+  useEffect(() => {
+    if (isAdmin) loadElections();
+  }, [isAdmin, loadElections]);
+
+  useEffect(() => {
+    if (!isAdmin || !hasActiveElections) return;
+    loadStats();
+    const timer = window.setInterval(loadStats, 30_000);
+    return () => window.clearInterval(timer);
+  }, [isAdmin, hasActiveElections, loadStats]);
 
   async function createElection(e: React.FormEvent) {
     e.preventDefault();
@@ -64,7 +97,8 @@ export default function AdminElectionsPage() {
       setDescription('');
       setStartDate('');
       setEndDate('');
-      load();
+      loadElections();
+      loadStats();
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Failed to create');
     }
@@ -75,78 +109,148 @@ export default function AdminElectionsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold">Manage elections</h1>
-      <button
-        type="button"
-        onClick={() => setShowForm(!showForm)}
-        className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
-      >
-        {showForm ? 'Cancel' : 'New election'}
-      </button>
+      <HubPageHeader
+        title="Manage elections"
+        description="Create elections, add positions and candidates, and monitor live turnout."
+        action={
+          <button
+            type="button"
+            onClick={() => setShowForm(!showForm)}
+            className="hub-btn-primary inline-flex w-auto rounded-xl px-4 py-2 text-sm font-semibold"
+          >
+            {showForm ? 'Cancel' : 'New election'}
+          </button>
+        }
+      />
+
+      {hasActiveElections && liveStats && (
+        <section className="mb-8 space-y-4">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--color-brand)] opacity-60" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--color-brand)]" />
+            </span>
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-hub-muted)]">
+              Live stats · refreshes every 30s
+            </h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <StatTile label="Active elections" value={String(liveStats.stats.active_elections)} />
+            <StatTile label="Total votes" value={String(liveStats.stats.total_votes)} />
+            <StatTile label="Eligible members" value={String(liveStats.stats.total_users)} />
+            <StatTile label="All elections" value={String(liveStats.stats.total_elections)} />
+          </div>
+          {liveStats.recent_voters.length > 0 && (
+            <div className="hub-card-muted p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-hub-muted)]">
+                Recent ballots
+              </p>
+              <ul className="mt-3 space-y-2">
+                {liveStats.recent_voters.slice(0, 5).map((v, i) => (
+                  <li
+                    key={`${v.voted_at}-${i}`}
+                    className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                  >
+                    <span className="font-medium text-[var(--color-hub-text)]">
+                      {v.full_name ?? 'Member'}
+                      {v.student_id && (
+                        <span className="ml-2 font-mono text-xs text-[var(--color-hub-muted)]">
+                          {v.student_id}
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-xs text-[var(--color-hub-text-secondary)]">
+                      {v.election_title ?? 'Election'} · {new Date(v.voted_at).toLocaleString()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
 
       {showForm && (
-        <form onSubmit={createElection} className="mt-6 max-w-lg space-y-4 rounded-xl border p-6">
-          {error && <p className="text-sm text-red-600">{error}</p>}
+        <form onSubmit={createElection} className="hub-card mb-8 max-w-lg space-y-4 p-6">
+          {error && <HubAlert variant="error">{error}</HubAlert>}
           <input
             placeholder="Title"
             required
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full rounded-lg border px-3 py-2 dark:bg-zinc-800"
+            className="hub-input w-full rounded-xl px-3.5 py-2.5 text-sm"
           />
           <textarea
             placeholder="Description (optional)"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full rounded-lg border px-3 py-2 dark:bg-zinc-800"
+            className="hub-input w-full rounded-xl px-3.5 py-2.5 text-sm"
           />
           <div>
-            <label className="text-sm">Start</label>
+            <label className="text-sm font-medium">Start</label>
             <input
               type="datetime-local"
               required
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="mt-1 w-full rounded-lg border px-3 py-2 dark:bg-zinc-800"
+              className="hub-input mt-1 w-full rounded-xl px-3.5 py-2.5 text-sm"
             />
           </div>
           <div>
-            <label className="text-sm">End</label>
+            <label className="text-sm font-medium">End</label>
             <input
               type="datetime-local"
               required
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="mt-1 w-full rounded-lg border px-3 py-2 dark:bg-zinc-800"
+              className="hub-input mt-1 w-full rounded-xl px-3.5 py-2.5 text-sm"
             />
           </div>
-          <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-2 text-white">
+          <button type="submit" className="hub-btn-primary rounded-xl px-4 py-2 text-sm font-semibold">
             Create
           </button>
         </form>
       )}
 
-      <ul className="mt-8 space-y-3">
+      <ul className="space-y-3">
         {elections.map((e) => (
-          <li
-            key={e.id}
-            className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900"
-          >
+          <li key={e.id} className="hub-list-card">
             <div>
-              <p className="font-medium">{e.title}</p>
-              <p className="text-xs text-zinc-500">
-                {e.status} · {e.vote_count ?? 0} votes
+              <p className="font-medium text-[var(--color-hub-text)]">{e.title}</p>
+              <p className="text-xs text-[var(--color-hub-text-secondary)]">
+                <span
+                  className={
+                    e.status === 'active'
+                      ? 'font-semibold text-[var(--color-brand)]'
+                      : 'capitalize'
+                  }
+                >
+                  {e.status}
+                </span>
+                {' · '}
+                {e.vote_count ?? 0} votes
               </p>
             </div>
-            <Link
-              href={`/hub/admin/elections/${e.id}`}
-              className="text-sm font-medium text-emerald-600 hover:underline"
-            >
+            <Link href={`/hub/admin/elections/${e.id}`} className="hub-link text-sm">
               Manage →
             </Link>
           </li>
         ))}
+        {elections.length === 0 && (
+          <p className="hub-empty-state">No elections yet. Create one to get started.</p>
+        )}
       </ul>
+    </div>
+  );
+}
+
+function StatTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="hub-card p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-hub-muted)]">
+        {label}
+      </p>
+      <p className="mt-1 text-2xl font-bold tabular-nums text-[var(--color-brand)]">{value}</p>
     </div>
   );
 }
