@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { SpinnerCenter } from '@/app/components/Spinner';
-import SiteFooter from '@/app/components/SiteFooter';
 import BrandLogo from '@/app/components/BrandLogo';
 import {
   IconAdmin,
@@ -195,7 +194,6 @@ export default function HubShell({ children }: { children: React.ReactNode }) {
             <div className="hub-card min-h-[calc(100vh-8rem)] p-5 sm:p-8">{children}</div>
           </main>
 
-          <SiteFooter />
         </div>
       </div>
     </div>

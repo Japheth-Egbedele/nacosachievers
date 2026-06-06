@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Sans, Instrument_Serif } from "next/font/google";
-import SiteFooter from "./components/SiteFooter";
+import ConditionalSiteFooter from "./components/ConditionalSiteFooter";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -35,7 +35,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-zinc-50 dark:bg-black text-black dark:text-zinc-50">
         <div className="flex flex-1 flex-col">{children}</div>
-        <SiteFooter />
+        <ConditionalSiteFooter />
       </body>
     </html>
   );

@@ -3,7 +3,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import SiteFooter from '@/app/components/SiteFooter';
 import { SpinnerCenter } from '@/app/components/Spinner';
 import ElectionResultsReport from '@/app/hub/components/elections/ElectionResultsReport';
 import HubAlert from '@/app/hub/components/ui/HubAlert';
@@ -97,8 +96,6 @@ export default function PublicElectionResults({
           />
         )}
       </main>
-
-      <SiteFooter />
     </div>
   );
 }
