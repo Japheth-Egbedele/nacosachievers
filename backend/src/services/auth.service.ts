@@ -15,6 +15,7 @@ import * as tokenService from './token.service.js';
 import * as emailService from './email.service.js';
 import type { UserRecord } from '../types/user.types.js';
 import type { UserRole } from '../constants/enums.js';
+import { expectedGraduationYear } from '../utils/academic-level.js';
 
 const USER_COLUMNS =
   'id, matric_number, email, password_hash, role, first_name, last_name, display_name, bio, profile_photo_url, department_id, level, level_of_entry, year_of_admission, expected_graduation_year, actual_graduation_year, academic_status, admission_type, linkedin_url, github_url, other_social_links, email_visible, wallet_balance, is_email_verified, is_active, notification_prefs, last_login_at, created_at, updated_at';
@@ -32,11 +33,28 @@ export async function validatePinAndIssueToken(input: {
   matricNumber?: string;
   staffEmail?: string;
   pin: string;
-}): Promise<{ onboardingToken: string }> {
+}): Promise<{
+  onboardingToken: string;
+  pin_preview: {
+    level_of_entry: string | null;
+    department_id: string | null;
+    year_of_admission: number | null;
+    is_staff: boolean;
+  };
+}> {
   const row = input.staffEmail
     ? await pinService.validatePinByStaffEmail(input.staffEmail, input.pin)
     : await pinService.validatePinByMatric(input.matricNumber!, input.pin);
-  return { onboardingToken: tokenService.signOnboardingToken(row.id) };
+  const isStaff = row.level_of_entry === 'staff' || Boolean(row.staff_email);
+  return {
+    onboardingToken: tokenService.signOnboardingToken(row.id),
+    pin_preview: {
+      level_of_entry: row.level_of_entry,
+      department_id: row.department_id,
+      year_of_admission: row.year_of_admission,
+      is_staff: isStaff,
+    },
+  };
 }
 
 /**
@@ -49,6 +67,7 @@ export async function registerUser(input: {
   firstName: string;
   lastName: string;
   displayName?: string;
+  yearOfAdmission?: number;
 }): Promise<{ userId: string; email_sent: boolean }> {
   const pinId = tokenService.verifyOnboardingToken(input.onboardingToken);
   const activePin = await pinService.getActivePinById(pinId);
@@ -67,6 +86,21 @@ export async function registerUser(input: {
 
   const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
 
+  let yearOfAdmission: number | null = activePin.year_of_admission;
+  if (!isStaff) {
+    if (yearOfAdmission == null) {
+      if (input.yearOfAdmission == null) {
+        throw new ValidationError('Year of admission is required');
+      }
+      yearOfAdmission = input.yearOfAdmission;
+    }
+  }
+
+  const expectedGrad =
+    !isStaff && activePin.level_of_entry && yearOfAdmission != null
+      ? expectedGraduationYear(activePin.level_of_entry, yearOfAdmission)
+      : null;
+
   const { data: user, error } = await getSupabase()
     .from('users')
     .insert({
@@ -79,6 +113,8 @@ export async function registerUser(input: {
       department_id: activePin.department_id,
       level: activePin.level_of_entry ?? null,
       level_of_entry: activePin.level_of_entry ?? null,
+      year_of_admission: yearOfAdmission,
+      expected_graduation_year: expectedGrad,
       admission_type: activePin.admission_type ?? 'regular',
       role: isStaff ? 'staff' : 'member',
     })

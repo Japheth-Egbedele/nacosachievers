@@ -75,6 +75,7 @@ export interface MeResponse extends PublicUserProfile {
   wallet_balance: number;
   is_email_verified: boolean;
   can_issue_pins?: boolean;
+  admin_scopes?: string[];
   academic_status: string;
   admission_type: string;
   year_of_admission: number | null;

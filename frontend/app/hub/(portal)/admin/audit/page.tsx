@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { SpinnerCenter } from '@/app/components/Spinner';
 import HubAlert from '@/app/hub/components/ui/HubAlert';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
-import { apiFetch } from '@/lib/api';
+import { apiFetchPaginated } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
 type AuditLog = {
@@ -18,15 +18,10 @@ type AuditLog = {
   created_at: string;
 };
 
-type AuditResponse = {
-  items: AuditLog[];
-  meta: { total: number; page: number; limit: number };
-};
-
 export default function AdminAuditPage() {
   const { isAdmin, loading: authLoading } = useAuth();
   const [items, setItems] = useState<AuditLog[]>([]);
-  const [meta, setMeta] = useState<AuditResponse['meta'] | null>(null);
+  const [meta, setMeta] = useState<{ total: number; page: number; limit: number } | null>(null);
   const [actionFilter, setActionFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -36,7 +31,7 @@ export default function AdminAuditPage() {
     if (actionFilter.trim()) params.set('action', actionFilter.trim());
     setLoading(true);
     setError('');
-    apiFetch<AuditResponse>(`/admin/audit-logs?${params.toString()}`)
+    apiFetchPaginated<AuditLog>(`/admin/audit-logs?${params.toString()}`)
       .then((data) => {
         setItems(data.items);
         setMeta(data.meta);

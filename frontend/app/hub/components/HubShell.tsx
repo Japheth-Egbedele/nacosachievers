@@ -10,6 +10,8 @@ import {
   IconKey,
   IconLogout,
   IconUser,
+  IconVault,
+  IconWallet,
 } from '@/app/hub/components/ui/HubIcons';
 import { getHubGreeting } from '@/lib/hub-greeting';
 import { useAuth } from '@/lib/auth-context';
@@ -20,6 +22,8 @@ function navActive(pathname: string, href: string): boolean {
 
 const memberLinks = [
   { href: '/hub/elections', label: 'Elections', icon: IconElections },
+  { href: '/hub/vault', label: 'Vault', icon: IconVault },
+  { href: '/hub/wallet', label: 'Wallet', icon: IconWallet },
   { href: '/hub/profile', label: 'Profile', icon: IconUser },
 ];
 

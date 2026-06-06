@@ -58,6 +58,7 @@ export async function generatePin(req: Request, res: Response): Promise<void> {
     departmentId: parsed.department_id,
     levelOfEntry: parsed.level_of_entry,
     admissionType: parsed.admission_type,
+    yearOfAdmission: parsed.year_of_admission,
     allowStaff: false,
   });
 

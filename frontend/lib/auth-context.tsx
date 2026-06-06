@@ -2,6 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { apiFetch, loadStoredToken, setAccessToken } from './api';
+import type { AdminScope } from './executive-offices';
 
 export type UserRole = 'member' | 'alumni' | 'executive' | 'staff' | 'super_admin' | 'guest';
 
@@ -14,6 +15,7 @@ export interface AuthUser {
   display_name?: string;
   matric_number?: string;
   can_issue_pins?: boolean;
+  admin_scopes?: AdminScope[];
 }
 
 interface AuthContextValue {
@@ -25,6 +27,7 @@ interface AuthContextValue {
   isAdmin: boolean;
   isSuperAdmin: boolean;
   canIssuePins: boolean;
+  hasAdminScope: (scope: AdminScope) => boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -85,9 +88,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isAdmin = isSuperAdmin || user?.role === 'executive';
   const canIssuePins = isSuperAdmin || Boolean(user?.can_issue_pins);
 
+  const hasAdminScope = useCallback(
+    (scope: AdminScope): boolean => {
+      if (!user) return false;
+      if (user.role === 'super_admin') return true;
+      if (user.role !== 'executive') return false;
+      const scopes = user.admin_scopes ?? [];
+      if (scopes.length === 0) return true;
+      return scopes.includes(scope);
+    },
+    [user],
+  );
+
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, logout, refreshUser, isAdmin, isSuperAdmin, canIssuePins }}
+      value={{
+        user,
+        loading,
+        login,
+        logout,
+        refreshUser,
+        isAdmin,
+        isSuperAdmin,
+        canIssuePins,
+        hasAdminScope,
+      }}
     >
       {children}
     </AuthContext.Provider>

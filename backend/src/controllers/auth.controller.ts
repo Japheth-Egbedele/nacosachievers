@@ -46,7 +46,7 @@ export async function validatePin(req: Request, res: Response): Promise<void> {
     staffEmail: body.staff_email,
     pin: body.pin,
   });
-  sendSuccess(res, { onboarding_token: result.onboardingToken }, HTTP_STATUS.OK);
+  sendSuccess(res, { onboarding_token: result.onboardingToken, pin_preview: result.pin_preview }, HTTP_STATUS.OK);
 }
 
 /**
@@ -60,6 +60,7 @@ export async function register(req: Request, res: Response): Promise<void> {
     first_name: string;
     last_name: string;
     display_name?: string;
+    year_of_admission?: number;
   };
   const result = await authService.registerUser({
     onboardingToken: body.onboarding_token,
@@ -68,6 +69,7 @@ export async function register(req: Request, res: Response): Promise<void> {
     firstName: body.first_name,
     lastName: body.last_name,
     displayName: body.display_name,
+    yearOfAdmission: body.year_of_admission,
   });
   sendSuccess(res, result, HTTP_STATUS.CREATED, 'Registration successful. Check your email.');
 }

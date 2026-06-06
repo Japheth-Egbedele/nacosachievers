@@ -14,11 +14,19 @@ import { pinValidationErrorMessage } from '@/lib/pin-errors';
 
 type RegisterMode = 'student' | 'staff';
 
+type PinPreview = {
+  level_of_entry: string | null;
+  department_id: string | null;
+  year_of_admission: number | null;
+  is_staff: boolean;
+};
+
 export default function HubRegisterPage() {
   const router = useRouter();
   const [step, setStep] = useState<'pin' | 'details'>('pin');
   const [mode, setMode] = useState<RegisterMode>('student');
   const [onboardingToken, setOnboardingToken] = useState('');
+  const [pinPreview, setPinPreview] = useState<PinPreview | null>(null);
   const [matric, setMatric] = useState('');
   const [staffEmail, setStaffEmail] = useState('');
   const [pin, setPin] = useState('');
@@ -26,8 +34,13 @@ export default function HubRegisterPage() {
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [yearOfAdmission, setYearOfAdmission] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const isStudent = mode === 'student' && !pinPreview?.is_staff;
+  const needsYearOfAdmission =
+    isStudent && pinPreview != null && pinPreview.year_of_admission == null;
 
   async function validatePin(e: React.FormEvent) {
     e.preventDefault();
@@ -39,12 +52,13 @@ export default function HubRegisterPage() {
           ? { matric_number: matric.trim(), pin }
           : { staff_email: staffEmail.trim().toLowerCase(), pin };
 
-      const data = await apiFetch<{ onboarding_token: string }>(
+      const data = await apiFetch<{ onboarding_token: string; pin_preview: PinPreview }>(
         '/auth/validate-pin',
         { method: 'POST', body: JSON.stringify(body) },
         false,
       );
       setOnboardingToken(data.onboarding_token);
+      setPinPreview(data.pin_preview);
       setStep('details');
     } catch (err) {
       setError(pinValidationErrorMessage(err));
@@ -58,17 +72,22 @@ export default function HubRegisterPage() {
     setError('');
     setBusy(true);
     try {
+      const payload: Record<string, unknown> = {
+        onboarding_token: onboardingToken,
+        email,
+        password,
+        first_name: firstName,
+        last_name: lastName,
+      };
+      if (needsYearOfAdmission && yearOfAdmission.trim()) {
+        payload.year_of_admission = parseInt(yearOfAdmission, 10);
+      }
+
       const result = await apiFetch<{ userId: string; email_sent?: boolean }>(
         '/auth/register',
         {
           method: 'POST',
-          body: JSON.stringify({
-            onboarding_token: onboardingToken,
-            email,
-            password,
-            first_name: firstName,
-            last_name: lastName,
-          }),
+          body: JSON.stringify(payload),
         },
         false,
       );
@@ -82,6 +101,13 @@ export default function HubRegisterPage() {
       setBusy(false);
     }
   }
+
+  const levelLabel =
+    pinPreview?.level_of_entry && pinPreview.level_of_entry !== 'staff'
+      ? `Level ${pinPreview.level_of_entry}`
+      : pinPreview?.is_staff
+        ? 'Staff'
+        : '—';
 
   return (
     <HubAuthLayout
@@ -158,6 +184,27 @@ export default function HubRegisterPage() {
       ) : (
         <form onSubmit={register} className="mt-8 space-y-5">
           {error && <HubAlert variant="error">{error}</HubAlert>}
+
+          {pinPreview && !pinPreview.is_staff && (
+            <HubField label="Level of entry">
+              <HubTextInput readOnly value={levelLabel} className="bg-[var(--color-hub-surface-muted)]" />
+            </HubField>
+          )}
+
+          {needsYearOfAdmission && (
+            <HubField label="Year of admission" hint="Required for student registration">
+              <HubTextInput
+                type="number"
+                required
+                min={1990}
+                max={2100}
+                value={yearOfAdmission}
+                onChange={(e) => setYearOfAdmission(e.target.value)}
+                placeholder="e.g. 2023"
+              />
+            </HubField>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <HubField label="First name">
               <HubTextInput
@@ -195,7 +242,14 @@ export default function HubRegisterPage() {
           <button type="submit" disabled={busy} className={hubBtnPrimary}>
             {busy ? 'Creating account…' : 'Create account'}
           </button>
-          <button type="button" onClick={() => setStep('pin')} className={`${hubBtnGhost} w-full`}>
+          <button
+            type="button"
+            onClick={() => {
+              setStep('pin');
+              setPinPreview(null);
+            }}
+            className={`${hubBtnGhost} w-full`}
+          >
             ← Back to PIN
           </button>
         </form>

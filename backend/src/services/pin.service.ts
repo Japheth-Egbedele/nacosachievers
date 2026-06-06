@@ -18,11 +18,12 @@ export interface OnboardingPinRow {
   expires_at: string;
   is_used: boolean;
   level_of_entry: string | null;
+  year_of_admission: number | null;
   admission_type: string;
 }
 
 const PIN_SELECT =
-  'id, pin_hash, matric_number, staff_email, department_id, created_by, expires_at, is_used, level_of_entry, admission_type';
+  'id, pin_hash, matric_number, staff_email, department_id, created_by, expires_at, is_used, level_of_entry, year_of_admission, admission_type';
 
 function generateStaffPlaceholderMatric(): string {
   const bytes = randomBytes(4);
@@ -111,6 +112,7 @@ export async function createPin(params: {
   departmentId?: string;
   levelOfEntry?: string;
   admissionType?: string;
+  yearOfAdmission?: number;
   allowStaff?: boolean;
 }): Promise<{ pin: string; id: string; matric_number: string; staff_email?: string }> {
   const isStaff = params.levelOfEntry === 'staff' || Boolean(params.staffEmail);
@@ -152,6 +154,7 @@ export async function createPin(params: {
       created_by: params.createdBy,
       department_id: params.departmentId ?? null,
       level_of_entry: isStaff ? 'staff' : (params.levelOfEntry ?? null),
+      year_of_admission: params.yearOfAdmission ?? null,
       admission_type: params.admissionType ?? 'regular',
       expires_at: expiresAt,
     })

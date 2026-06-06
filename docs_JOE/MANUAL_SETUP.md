@@ -842,6 +842,33 @@ create index if not exists idx_audit_logs_action on audit_logs(action, created_a
 
 Enable RLS on new tables with service-role-only policies matching other hub tables.
 
+### 2.6.2 — Academic onboarding, scoped admin, executive offices
+
+Run in **Supabase → SQL Editor**:
+
+```sql
+-- Admission year on onboarding PINs (optional at PIN issue; required at signup if blank)
+alter table onboarding_pins add column if not exists year_of_admission integer;
+
+-- Scoped executive admin access
+alter table users add column if not exists admin_scopes text[] not null default '{}';
+
+-- Official NACOS office on executive assignments (nullable for legacy tenure titles)
+alter table executive_assignments add column if not exists office_key text;
+```
+
+**CMS hero (fixes admin CMS 404):** if missing, insert:
+
+```sql
+insert into cms_sections (section_key, content)
+values ('hero', '{"headline": "NACOS Achievers", "subtext": "Computing students hub", "enabled": true}')
+on conflict (section_key) do nothing;
+```
+
+**Department:** ensure Computer Science exists (§2.3). PIN issuance and vault course creation use `GET /api/v1/departments`.
+
+**Session tools (super admin):** Hub → Admin → Settings → **Promote session** / **Graduate cohort** (or `POST /api/v1/admin/session/promote` after preview).
+
 ---
 
 ## Step 3 — Supabase Storage Buckets

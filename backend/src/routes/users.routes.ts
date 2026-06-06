@@ -11,6 +11,7 @@ import {
   deleteMeSchema,
   updateMeSchema,
 } from '../schemas/user.schema.js';
+import { userLookupQuerySchema } from '../schemas/admin.schema.js';
 import * as usersController from '../controllers/users.controller.js';
 import * as userYearbookController from '../controllers/user-yearbook.controller.js';
 
@@ -25,6 +26,12 @@ const router = Router();
 
 router.get('/alumni', authMiddleware, validate(alumniQuerySchema, 'query'), catchAsync(usersController.listAlumni));
 router.get('/leaderboard', authMiddleware, catchAsync(usersController.leaderboard));
+router.get(
+  '/lookup',
+  authMiddleware,
+  validate(userLookupQuerySchema, 'query'),
+  catchAsync(usersController.lookupUsers),
+);
 
 router.get('/me', authMiddleware, catchAsync(usersController.getMe));
 router.patch('/me', authMiddleware, validate(updateMeSchema), catchAsync(usersController.updateMe));

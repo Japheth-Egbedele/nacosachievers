@@ -4,6 +4,7 @@ import { ValidationError } from '../utils/errors.js';
 import { sendPaginated, sendSuccess } from '../utils/response.js';
 import * as userService from '../services/user.service.js';
 import * as auditService from '../services/audit.service.js';
+import * as sessionPromotionService from '../services/session-promotion.service.js';
 
 /**
  * GET /users/me
@@ -109,4 +110,12 @@ export async function uploadPhoto(req: Request, res: Response): Promise<void> {
 export async function deletePhoto(req: Request, res: Response): Promise<void> {
   const data = await userService.deleteProfilePhoto(req.user!.id);
   sendSuccess(res, data, HTTP_STATUS.OK, 'Profile photo removed');
+}
+
+/** GET /users/lookup — search members for wallet transfer etc. */
+export async function lookupUsers(req: Request, res: Response): Promise<void> {
+  const search = String(req.query.search ?? '');
+  const limit = req.query.limit ? Number(req.query.limit) : 20;
+  const data = await sessionPromotionService.lookupUsers(search, limit);
+  sendSuccess(res, data);
 }

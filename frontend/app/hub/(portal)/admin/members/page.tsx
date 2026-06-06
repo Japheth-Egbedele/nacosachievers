@@ -15,6 +15,8 @@ interface Member {
   email: string;
   role: string;
   level?: string | null;
+  year_of_admission?: number | null;
+  expected_graduation_year?: number | null;
   first_name: string;
   last_name: string;
   is_email_verified: boolean;
@@ -97,6 +99,9 @@ export default function AdminMembersPage() {
               <th className="px-4 py-3 font-medium">ID number</th>
               <th className="px-4 py-3 font-medium">Name</th>
               <th className="px-4 py-3 font-medium">Role</th>
+              <th className="px-4 py-3 font-medium">Level</th>
+              <th className="px-4 py-3 font-medium">Admission</th>
+              <th className="px-4 py-3 font-medium">Expected grad</th>
               <th className="px-4 py-3 font-medium">Verified</th>
               {isSuperAdmin && <th className="px-4 py-3 font-medium">Issue PINs</th>}
               <th className="px-4 py-3 font-medium">Active</th>
@@ -117,11 +122,15 @@ export default function AdminMembersPage() {
                       Staff
                     </span>
                   )}
-                  {m.level && m.level !== 'staff' && (
-                    <span className="ml-1.5 text-xs text-[var(--color-hub-text-secondary)]">
-                      L{m.level}
-                    </span>
-                  )}
+                </td>
+                <td className="px-4 py-3 text-[var(--color-hub-text-secondary)]">
+                  {m.level && m.level !== 'staff' ? `L${m.level}` : '—'}
+                </td>
+                <td className="px-4 py-3 text-[var(--color-hub-text-secondary)]">
+                  {m.year_of_admission ?? '—'}
+                </td>
+                <td className="px-4 py-3 text-[var(--color-hub-text-secondary)]">
+                  {m.expected_graduation_year ?? '—'}
                 </td>
                 <td className="px-4 py-3">{m.is_email_verified ? 'Yes' : 'No'}</td>
                 {isSuperAdmin && (

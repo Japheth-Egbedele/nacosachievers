@@ -1,3 +1,5 @@
+import { getOfficeByKey } from '../constants/executive-offices.js';
+import type { AdminScope } from '../constants/admin-scopes.js';
 import { getSupabase } from '../config/supabase.js';
 import type { AcademicStatus, UserLevel, UserRole } from '../constants/enums.js';
 import { NotFoundError } from '../utils/errors.js';
@@ -5,7 +7,7 @@ import { parsePagination, buildMeta } from '../utils/pagination.js';
 import * as settingsService from './settings.service.js';
 
 const MEMBER_COLUMNS =
-  'id, matric_number, email, role, first_name, last_name, display_name, level, academic_status, is_active, wallet_balance, is_email_verified, created_at, last_login_at';
+  'id, matric_number, email, role, first_name, last_name, display_name, level, level_of_entry, year_of_admission, expected_graduation_year, academic_status, is_active, wallet_balance, is_email_verified, can_issue_pins, created_at, last_login_at';
 
 /**
  * Paginated member list for admin portal.
@@ -65,6 +67,11 @@ export async function patchMember(
     is_active?: boolean;
     academic_status?: AcademicStatus;
     can_issue_pins?: boolean;
+    level?: UserLevel;
+    year_of_admission?: number;
+    expected_graduation_year?: number;
+    actual_graduation_year?: number;
+    admin_scopes?: AdminScope[];
   },
 ) {
   const { data: existing } = await getSupabase()
@@ -79,6 +86,15 @@ export async function patchMember(
   if (patch.is_active !== undefined) update.is_active = patch.is_active;
   if (patch.academic_status !== undefined) update.academic_status = patch.academic_status;
   if (patch.can_issue_pins !== undefined) update.can_issue_pins = patch.can_issue_pins;
+  if (patch.level !== undefined) update.level = patch.level;
+  if (patch.year_of_admission !== undefined) update.year_of_admission = patch.year_of_admission;
+  if (patch.expected_graduation_year !== undefined) {
+    update.expected_graduation_year = patch.expected_graduation_year;
+  }
+  if (patch.actual_graduation_year !== undefined) {
+    update.actual_graduation_year = patch.actual_graduation_year;
+  }
+  if (patch.admin_scopes !== undefined) update.admin_scopes = patch.admin_scopes;
 
   const { data, error } = await getSupabase()
     .from('users')
@@ -138,8 +154,13 @@ export async function assignExecutive(input: {
   userId: string;
   sessionId?: string;
   roleTitle: string;
+  officeKey?: string;
   assignedBy: string;
 }) {
+  const office = input.officeKey ? getOfficeByKey(input.officeKey) : undefined;
+  const roleTitle = office?.title ?? input.roleTitle;
+  const adminScopes = office?.defaultScopes ?? [];
+
   const { data: user } = await getSupabase()
     .from('users')
     .select('id, role')
@@ -149,7 +170,11 @@ export async function assignExecutive(input: {
 
   await getSupabase()
     .from('users')
-    .update({ role: 'executive', updated_at: new Date().toISOString() })
+    .update({
+      role: 'executive',
+      admin_scopes: adminScopes,
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', input.userId);
 
   const { data, error } = await getSupabase()
@@ -157,11 +182,12 @@ export async function assignExecutive(input: {
     .insert({
       user_id: input.userId,
       session_id: input.sessionId ?? null,
-      role_title: input.roleTitle,
+      role_title: roleTitle,
+      office_key: input.officeKey ?? null,
       assigned_by: input.assignedBy,
       is_active: true,
     })
-    .select('id, user_id, session_id, role_title, is_active, created_at')
+    .select('id, user_id, session_id, role_title, office_key, is_active, created_at')
     .single();
   if (error) throw error;
   return data;
@@ -205,7 +231,7 @@ export async function listExecutives() {
   const { data, error } = await getSupabase()
     .from('executive_assignments')
     .select(
-      'id, session_id, role_title, is_active, created_at, users!executive_assignments_user_id_fkey(id, first_name, last_name, display_name, email, matric_number)',
+      'id, session_id, role_title, office_key, is_active, created_at, users!executive_assignments_user_id_fkey(id, first_name, last_name, display_name, email, matric_number)',
     )
     .eq('is_active', true)
     .order('created_at', { ascending: false });

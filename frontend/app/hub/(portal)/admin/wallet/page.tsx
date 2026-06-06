@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
+import HubField, { HubTextInput } from '@/app/hub/components/ui/HubField';
+import HubMemberPicker, { type LookupUser } from '@/app/hub/components/ui/HubMemberPicker';
+import HubAlert from '@/app/hub/components/ui/HubAlert';
+import { hubBtnPrimary } from '@/lib/hub-styles';
 import { apiFetchPaginated, apiFetch, ApiClientError } from '@/lib/api';
 
 interface Tx {
@@ -14,7 +18,7 @@ interface Tx {
 
 export default function AdminWalletPage() {
   const [txs, setTxs] = useState<Tx[]>([]);
-  const [userId, setUserId] = useState('');
+  const [recipient, setRecipient] = useState<LookupUser | null>(null);
   const [amount, setAmount] = useState('');
   const [remark, setRemark] = useState('Admin credit');
   const [error, setError] = useState('');
@@ -33,8 +37,8 @@ export default function AdminWalletPage() {
     e.preventDefault();
     setError('');
     const amt = parseInt(amount, 10);
-    if (!userId.trim() || !Number.isFinite(amt) || amt <= 0) {
-      setError('User UUID and positive amount required');
+    if (!recipient || !Number.isFinite(amt) || amt <= 0) {
+      setError('Select a member and enter a positive amount');
       return;
     }
     try {
@@ -42,10 +46,10 @@ export default function AdminWalletPage() {
         method: 'POST',
         body: JSON.stringify({
           remark: remark.trim(),
-          credits: [{ user_id: userId.trim(), amount: amt }],
+          credits: [{ user_id: recipient.id, amount: amt }],
         }),
       });
-      setUserId('');
+      setRecipient(null);
       setAmount('');
       load();
     } catch (err) {
@@ -56,37 +60,43 @@ export default function AdminWalletPage() {
   return (
     <div>
       <AdminPageHeader title="Wallet" description="Bulk credit members and view recent transactions." />
-      {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-      <form onSubmit={credit} className="mb-8 max-w-lg space-y-3 rounded-xl border p-4 dark:border-zinc-800">
-        <input
-          value={userId}
-          onChange={(e) => setUserId(e.target.value)}
-          placeholder="Member user UUID"
-          className="w-full rounded-lg border px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-        />
-        <input
-          type="number"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="Credits amount"
-          className="w-full rounded-lg border px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-        />
-        <input
-          value={remark}
-          onChange={(e) => setRemark(e.target.value)}
-          placeholder="Remark"
-          className="w-full rounded-lg border px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-        />
-        <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-2 text-sm text-white">
+      {error && <HubAlert variant="error" className="mb-4">{error}</HubAlert>}
+      <form onSubmit={credit} className="mb-8 max-w-lg space-y-4 rounded-xl border border-[var(--color-hub-border)] p-4">
+        <HubField label="Member">
+          <HubMemberPicker
+            value={recipient?.id}
+            onSelect={setRecipient}
+            placeholder="Search member by name or matric…"
+          />
+        </HubField>
+        <HubField label="Credits amount">
+          <HubTextInput
+            type="number"
+            min={1}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="Credits amount"
+          />
+        </HubField>
+        <HubField label="Remark">
+          <HubTextInput
+            value={remark}
+            onChange={(e) => setRemark(e.target.value)}
+            placeholder="Remark"
+          />
+        </HubField>
+        <button type="submit" className={hubBtnPrimary}>
           Credit wallet
         </button>
       </form>
       <ul className="space-y-2 text-sm">
         {txs.map((t) => (
-          <li key={t.id} className="rounded-lg border px-4 py-2 dark:border-zinc-800">
+          <li key={t.id} className="rounded-lg border border-[var(--color-hub-border)] px-4 py-2">
             <span className="font-medium">{t.type}</span> {t.amount > 0 ? '+' : ''}
             {t.amount} — {t.remark}
-            <div className="text-xs text-zinc-500">{new Date(t.created_at).toLocaleString()}</div>
+            <div className="text-xs text-[var(--color-hub-text-secondary)]">
+              {new Date(t.created_at).toLocaleString()}
+            </div>
           </li>
         ))}
       </ul>

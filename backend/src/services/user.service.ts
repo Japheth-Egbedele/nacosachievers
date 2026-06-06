@@ -10,7 +10,7 @@ import { BCRYPT_ROUNDS } from '../constants/auth.js';
 import { ERROR_MESSAGES } from '../constants/messages.js';
 
 const USER_COLUMNS =
-  'id, matric_number, email, password_hash, role, first_name, last_name, display_name, bio, profile_photo_url, department_id, level, level_of_entry, year_of_admission, expected_graduation_year, actual_graduation_year, academic_status, admission_type, linkedin_url, github_url, other_social_links, email_visible, wallet_balance, is_email_verified, is_active, can_issue_pins, notification_prefs, last_login_at, created_at, updated_at';
+  'id, matric_number, email, password_hash, role, first_name, last_name, display_name, bio, profile_photo_url, department_id, level, level_of_entry, year_of_admission, expected_graduation_year, actual_graduation_year, academic_status, admission_type, linkedin_url, github_url, other_social_links, email_visible, wallet_balance, is_email_verified, is_active, can_issue_pins, admin_scopes, notification_prefs, last_login_at, created_at, updated_at';
 
 const PUBLIC_COLUMNS =
   'id, first_name, last_name, display_name, bio, profile_photo_url, role, level, expected_graduation_year, actual_graduation_year, linkedin_url, github_url, email_visible, email';
@@ -73,6 +73,8 @@ export async function getMe(userId: string): Promise<MeResponse> {
     wallet_balance: user.wallet_balance,
     is_email_verified: user.is_email_verified,
     can_issue_pins: Boolean((user as UserRecord & { can_issue_pins?: boolean }).can_issue_pins),
+    admin_scopes: ((user as UserRecord & { admin_scopes?: string[] }).admin_scopes ??
+      []) as string[],
     academic_status: user.academic_status,
     admission_type: user.admission_type,
     year_of_admission: user.year_of_admission,

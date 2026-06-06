@@ -3,8 +3,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
+import HubAdminSearch from '@/app/hub/components/ui/HubAdminSearch';
+import HubAlert from '@/app/hub/components/ui/HubAlert';
 import { SpinnerCenter } from '@/app/components/Spinner';
+import { hubLink } from '@/lib/hub-styles';
 import { apiFetch, apiFetchPaginated, ApiClientError } from '@/lib/api';
+import {
+  EXECUTIVE_OFFICES,
+  officeDisplayTitle,
+  type ExecutiveOfficeKey,
+} from '@/lib/executive-offices';
 import { useAuth } from '@/lib/auth-context';
 
 interface Member {
@@ -19,6 +27,7 @@ interface Member {
 interface Assignment {
   id: string;
   role_title: string;
+  office_key?: string | null;
   created_at: string;
   users?: {
     id: string;
@@ -35,7 +44,7 @@ export default function AdminExecutivesPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [search, setSearch] = useState('');
-  const [roleByUser, setRoleByUser] = useState<Record<string, string>>({});
+  const [officeByUser, setOfficeByUser] = useState<Record<string, ExecutiveOfficeKey | ''>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -65,9 +74,9 @@ export default function AdminExecutivesPage() {
   }, [isSuperAdmin, loadMembers]);
 
   async function assignExecutive(userId: string) {
-    const roleTitle = roleByUser[userId]?.trim();
-    if (!roleTitle) {
-      setError('Enter a role title (e.g. PRO) before assigning');
+    const officeKey = officeByUser[userId];
+    if (!officeKey) {
+      setError('Select an executive office before assigning');
       return;
     }
     setError('');
@@ -75,9 +84,9 @@ export default function AdminExecutivesPage() {
     try {
       await apiFetch('/admin/executives/assign', {
         method: 'POST',
-        body: JSON.stringify({ user_id: userId, role_title: roleTitle }),
+        body: JSON.stringify({ user_id: userId, office_key: officeKey }),
       });
-      setRoleByUser((prev) => ({ ...prev, [userId]: '' }));
+      setOfficeByUser((prev) => ({ ...prev, [userId]: '' }));
       loadAssignments();
       await loadMembers();
     } catch (err) {
@@ -123,23 +132,24 @@ export default function AdminExecutivesPage() {
     <div>
       <AdminPageHeader
         title="Executives"
-        description="Search members by name or ID number, assign a role title, or revoke access."
+        description="Search members by name or ID number, assign an executive office, or revoke access."
       />
-      {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {error && <HubAlert variant="error" className="mb-4">{error}</HubAlert>}
 
       <section className="mb-10">
-        <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Current executives</h2>
+        <h2 className="text-sm font-semibold text-[var(--color-hub-text)]">Current executives</h2>
         <ul className="mt-3 space-y-2">
           {assignments.map((a) => (
             <li
               key={a.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border px-4 py-3 dark:border-zinc-800"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--color-hub-border)] px-4 py-3"
             >
               <div>
                 <p className="font-medium">
-                  {a.users?.first_name} {a.users?.last_name} — {a.role_title}
+                  {a.users?.first_name} {a.users?.last_name} —{' '}
+                  {officeDisplayTitle(a.office_key, a.role_title)}
                 </p>
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-[var(--color-hub-text-secondary)]">
                   {a.users?.matric_number} · {a.users?.email}
                 </p>
               </div>
@@ -153,49 +163,40 @@ export default function AdminExecutivesPage() {
             </li>
           ))}
           {assignments.length === 0 && (
-            <li className="text-sm text-zinc-500">No active executive assignments.</li>
+            <li className="text-sm text-[var(--color-hub-text-secondary)]">
+              No active executive assignments.
+            </li>
           )}
         </ul>
       </section>
 
       <section>
-        <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Promote a member</h2>
-        <form
-          className="mt-3 mb-4 flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void loadMembers();
-          }}
-        >
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name, ID number (AU23…), email…"
-            className="flex-1 rounded-lg border px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-          />
-          <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-2 text-sm text-white">
-            Search
-          </button>
-        </form>
-        <div className="overflow-x-auto rounded-xl border dark:border-zinc-800">
+        <h2 className="text-sm font-semibold text-[var(--color-hub-text)]">Promote a member</h2>
+        <HubAdminSearch
+          value={search}
+          onChange={setSearch}
+          onSubmit={() => void loadMembers()}
+          placeholder="Search name, ID number (AU23…), email…"
+        />
+        <div className="overflow-x-auto rounded-xl border border-[var(--color-hub-border)]">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-zinc-50 text-zinc-500 dark:bg-zinc-900">
+            <thead className="bg-[var(--color-hub-surface-muted)] text-[var(--color-hub-text-secondary)]">
               <tr>
-                <th className="px-4 py-3">Member</th>
-                <th className="px-4 py-3">ID number</th>
-                <th className="px-4 py-3">Role</th>
-                <th className="px-4 py-3">Actions</th>
+                <th className="px-4 py-3 font-medium">Member</th>
+                <th className="px-4 py-3 font-medium">ID number</th>
+                <th className="px-4 py-3 font-medium">Role</th>
+                <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {members.map((m) => (
-                <tr key={m.id} className="border-t border-zinc-100 dark:border-zinc-800">
+                <tr key={m.id} className="border-t border-[var(--color-hub-border)]">
                   <td className="px-4 py-3">
                     {m.first_name} {m.last_name}
-                    <div className="text-xs text-zinc-500">{m.email}</div>
+                    <div className="text-xs text-[var(--color-hub-text-secondary)]">{m.email}</div>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">{m.matric_number}</td>
-                  <td className="px-4 py-3 capitalize">{m.role}</td>
+                  <td className="px-4 py-3 capitalize">{m.role.replace('_', ' ')}</td>
                   <td className="px-4 py-3">
                     {m.role === 'executive' ? (
                       <button
@@ -208,19 +209,28 @@ export default function AdminExecutivesPage() {
                       </button>
                     ) : (
                       <div className="flex flex-wrap items-center gap-2">
-                        <input
-                          value={roleByUser[m.id] ?? ''}
+                        <select
+                          value={officeByUser[m.id] ?? ''}
                           onChange={(e) =>
-                            setRoleByUser((prev) => ({ ...prev, [m.id]: e.target.value }))
+                            setOfficeByUser((prev) => ({
+                              ...prev,
+                              [m.id]: e.target.value as ExecutiveOfficeKey | '',
+                            }))
                           }
-                          placeholder="Role (e.g. PRO)"
-                          className="w-32 rounded border px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
-                        />
+                          className="hub-input rounded-lg px-2 py-1 text-xs"
+                        >
+                          <option value="">— Office —</option>
+                          {EXECUTIVE_OFFICES.map((o) => (
+                            <option key={o.key} value={o.key}>
+                              {o.title}
+                            </option>
+                          ))}
+                        </select>
                         <button
                           type="button"
                           disabled={busyId === m.id}
                           onClick={() => assignExecutive(m.id)}
-                          className="text-emerald-600 hover:underline"
+                          className={hubLink}
                         >
                           Assign
                         </button>
@@ -232,7 +242,9 @@ export default function AdminExecutivesPage() {
             </tbody>
           </table>
           {members.length === 0 && (
-            <p className="px-4 py-8 text-center text-sm text-zinc-500">No members found.</p>
+            <p className="px-4 py-8 text-center text-sm text-[var(--color-hub-text-secondary)]">
+              No members found.
+            </p>
           )}
         </div>
       </section>

@@ -6,6 +6,8 @@ import {
   LogOut,
   Settings,
   User,
+  Wallet,
+  BookOpen,
 } from 'lucide-react';
 
 type IconProps = { className?: string };
@@ -38,4 +40,12 @@ export function IconUser({ className = '' }: IconProps) {
 
 export function IconKey({ className = '' }: IconProps) {
   return <Key className={`${iconBase} ${className}`} strokeWidth={1.75} aria-hidden />;
+}
+
+export function IconVault({ className = '' }: IconProps) {
+  return <BookOpen className={`${iconBase} ${className}`} strokeWidth={1.75} aria-hidden />;
+}
+
+export function IconWallet({ className = '' }: IconProps) {
+  return <Wallet className={`${iconBase} ${className}`} strokeWidth={1.75} aria-hidden />;
 }

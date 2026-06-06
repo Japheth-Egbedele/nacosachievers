@@ -9,6 +9,7 @@ import HubPageHeader from '@/app/hub/components/ui/HubPageHeader';
 import HubPillTabs from '@/app/hub/components/ui/HubPillTabs';
 import { hubBtnPrimary } from '@/lib/hub-styles';
 import { apiFetch, ApiClientError } from '@/lib/api';
+import { getDepartments, type Department } from '@/lib/departments';
 import { useAuth } from '@/lib/auth-context';
 
 type PinMode = 'student' | 'staff';
@@ -27,7 +28,10 @@ export default function AdminPinsPage() {
   const [mode, setMode] = useState<PinMode>('student');
   const [matric, setMatric] = useState('');
   const [staffEmail, setStaffEmail] = useState('');
+  const [departmentId, setDepartmentId] = useState('');
   const [level, setLevel] = useState('');
+  const [yearOfAdmission, setYearOfAdmission] = useState('');
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [issued, setIssued] = useState<IssuedPin | null>(null);
@@ -38,6 +42,10 @@ export default function AdminPinsPage() {
     if (!loading && !allowed) router.replace('/hub/elections');
   }, [loading, allowed, router]);
 
+  useEffect(() => {
+    void getDepartments().then(setDepartments).catch(() => setDepartments([]));
+  }, []);
+
   async function handleGenerate(e: React.FormEvent) {
     e.preventDefault();
     setError('');
@@ -46,10 +54,17 @@ export default function AdminPinsPage() {
     try {
       const body =
         mode === 'staff'
-          ? { staff_email: staffEmail.trim().toLowerCase() }
+          ? {
+              staff_email: staffEmail.trim().toLowerCase(),
+              ...(departmentId ? { department_id: departmentId } : {}),
+            }
           : {
               matric_number: matric.trim().toUpperCase(),
-              ...(level ? { level_of_entry: level } : {}),
+              department_id: departmentId,
+              level_of_entry: level,
+              ...(yearOfAdmission.trim()
+                ? { year_of_admission: parseInt(yearOfAdmission, 10) }
+                : {}),
             };
 
       const data = await apiFetch<IssuedPin>('/admin/pins/generate', {
@@ -59,7 +74,9 @@ export default function AdminPinsPage() {
       setIssued({ ...data, level_of_entry: level || undefined });
       setMatric('');
       setStaffEmail('');
+      setDepartmentId('');
       setLevel('');
+      setYearOfAdmission('');
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Failed to generate PIN');
     } finally {
@@ -100,15 +117,31 @@ export default function AdminPinsPage() {
         )}
 
         {mode === 'staff' && isSuperAdmin ? (
-          <HubField label="Staff email" hint="Institutional email for lecturers and department staff">
-            <HubTextInput
-              type="email"
-              required
-              value={staffEmail}
-              onChange={(e) => setStaffEmail(e.target.value)}
-              placeholder="lecturer@achievers.edu.ng"
-            />
-          </HubField>
+          <>
+            <HubField label="Staff email" hint="Institutional email for lecturers and department staff">
+              <HubTextInput
+                type="email"
+                required
+                value={staffEmail}
+                onChange={(e) => setStaffEmail(e.target.value)}
+                placeholder="lecturer@achievers.edu.ng"
+              />
+            </HubField>
+            <HubField label="Department (optional)">
+              <select
+                value={departmentId}
+                onChange={(e) => setDepartmentId(e.target.value)}
+                className="hub-input w-full rounded-xl px-3.5 py-2.5 text-sm"
+              >
+                <option value="">— None —</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </HubField>
+          </>
         ) : (
           <>
             <HubField label="Matric number" hint="University ID for the new member">
@@ -119,18 +152,44 @@ export default function AdminPinsPage() {
                 placeholder="AU23AY4578"
               />
             </HubField>
-            <HubField label="Level of entry (optional)">
+            <HubField label="Department" hint="Required for student PINs">
               <select
+                required
+                value={departmentId}
+                onChange={(e) => setDepartmentId(e.target.value)}
+                className="hub-input w-full rounded-xl px-3.5 py-2.5 text-sm"
+              >
+                <option value="">— Select department —</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </HubField>
+            <HubField label="Level of entry" hint="Required">
+              <select
+                required
                 value={level}
                 onChange={(e) => setLevel(e.target.value)}
                 className="hub-input w-full rounded-xl px-3.5 py-2.5 text-sm"
               >
-                <option value="">— default —</option>
+                <option value="">— Select level —</option>
                 <option value="100">100</option>
                 <option value="200">200</option>
                 <option value="300">300</option>
                 <option value="400">400</option>
               </select>
+            </HubField>
+            <HubField label="Year of admission (optional)" hint="Member can supply this at registration if omitted">
+              <HubTextInput
+                type="number"
+                min={1990}
+                max={2100}
+                value={yearOfAdmission}
+                onChange={(e) => setYearOfAdmission(e.target.value)}
+                placeholder="e.g. 2023"
+              />
             </HubField>
           </>
         )}

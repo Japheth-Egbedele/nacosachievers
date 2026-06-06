@@ -14,15 +14,15 @@ Set `NEXT_PUBLIC_API_URL=http://localhost:3000` in `frontend/.env.local`.
 
 ## Database
 
-1. Run all SQL in [MANUAL_SETUP.md](./MANUAL_SETUP.md) including **§2.6.1** (platform migrations), **§2.19.1** (staff role), and **§2.22 Elections**.
+1. Run all SQL in [MANUAL_SETUP.md](./MANUAL_SETUP.md) including **§2.6.1**, **§2.6.2**, **§2.19.1** (staff role), and **§2.22 Elections**.
 2. Seed super admin (§2.19).
 
 ## How hub onboarding works
 
 ### Students
 
-1. **Super admin** or a delegated **PIN issuer** (`can_issue_pins`) issues a PIN for the student’s **ID number** (matric).
-2. Student opens `/hub/register` → **Student** tab → ID number + 8-character PIN → name, email, password.
+1. **Super admin** or a delegated **PIN issuer** issues a PIN: **ID number**, **level of entry**, **department** (Computer Science), optional admission year.
+2. Student opens `/hub/register` → **Student** tab → ID + PIN → **year of admission** (if not on PIN), name, email, password.
 3. User **verifies email** (link from Resend, or `/hub/verify-email` with token).
 4. User **logs in** at `/hub/login` → can vote in **Elections** when an election is active.
 
@@ -130,6 +130,19 @@ insert into users (
 TestPass123!
 
 All three rows can share the same hash if they share the password `TestPass123!`. Log in at `/hub/login` with each email + that password.
+
+## Vault & wallet smoke test
+
+1. Run **MANUAL_SETUP §2.6.2** in Supabase (includes `admin_scopes`, `year_of_admission` on PINs).
+2. Super admin → **Admin → Vault → Create course** — add a CS course (level, semester, code, name).
+3. Member → **Hub → Vault → Upload** — pick course, title, PDF → submit.
+4. Executive with `vault` scope (or legacy exec) → **Admin → Vault → Pending** → Approve.
+5. Admin → **Wallet** — search member by name (not UUID) → credit credits.
+6. Member → **Hub → Wallet** — see balance; transfer to another member via search.
+
+## Session promotion (super admin)
+
+**Admin → Settings → Academic session** — Preview/Apply **Promote session** (100→400) or **Graduate cohort** (400 → alumni). Suspended students are skipped.
 
 ## Election dry-run
 

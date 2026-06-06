@@ -30,6 +30,7 @@ import yearbookRoutes from './yearbook.routes.js';
 import adminYearbookRoutes from './admin-yearbook.routes.js';
 import careersRoutes from './careers.routes.js';
 import adminCareersRoutes from './admin-careers.routes.js';
+import departmentsRoutes from './departments.routes.js';
 import electionsRoutes from './elections.routes.js';
 import adminElectionsRoutes from './admin-elections.routes.js';
 
@@ -76,6 +77,7 @@ apiRouter.use('/yearbook', yearbookRoutes);
 apiRouter.use('/admin/yearbook', adminYearbookRoutes);
 apiRouter.use('/careers', careersRoutes);
 apiRouter.use('/admin/careers', adminCareersRoutes);
+apiRouter.use('/departments', departmentsRoutes);
 apiRouter.use('/elections', electionsRoutes);
 apiRouter.use('/admin/elections', adminElectionsRoutes);
 

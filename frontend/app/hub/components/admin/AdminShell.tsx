@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { SpinnerCenter } from '@/app/components/Spinner';
 import { IconChevronLeft } from '@/app/hub/components/ui/HubIcons';
 import { filterAdminNav } from '@/lib/admin-nav';
+import type { AdminScope } from '@/lib/executive-offices';
 import { useAuth } from '@/lib/auth-context';
 
 function navActive(pathname: string, href: string): boolean {
@@ -14,11 +15,12 @@ function navActive(pathname: string, href: string): boolean {
 }
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
-  const { loading, isAdmin, isSuperAdmin, canIssuePins } = useAuth();
+  const { loading, isAdmin, isSuperAdmin, canIssuePins, user } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const pinOnlyIssuer = canIssuePins && !isAdmin;
-  const links = filterAdminNav(isSuperAdmin, canIssuePins, isAdmin);
+  const adminScopes = (user?.admin_scopes ?? []) as AdminScope[];
+  const links = filterAdminNav(isSuperAdmin, canIssuePins, isAdmin, adminScopes);
   const canAccessAdmin = isAdmin || canIssuePins;
 
   useEffect(() => {

@@ -19,6 +19,7 @@ export const registerSchema = z.object({
   first_name: z.string().min(1).max(64),
   last_name: z.string().min(1).max(64),
   display_name: z.string().min(1).max(128).optional(),
+  year_of_admission: z.coerce.number().int().min(1990).max(2100).optional(),
 });
 
 export const verifyEmailSchema = z.object({
@@ -52,8 +53,9 @@ export const correctPendingEmailSchema = z.object({
 
 export const generatePinStudentSchema = z.object({
   matric_number: z.string().min(3).max(32),
-  department_id: z.string().uuid().optional(),
-  level_of_entry: z.enum(['100', '200', '300', '400']).optional(),
+  department_id: z.string().uuid(),
+  level_of_entry: z.enum(['100', '200', '300', '400']),
+  year_of_admission: z.coerce.number().int().min(1990).max(2100).optional(),
   admission_type: z.enum(['regular', 'transfer', 'readmission']).optional(),
 });
 
