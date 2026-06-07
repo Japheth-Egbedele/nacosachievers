@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { apiFetch, loadStoredToken, setAccessToken } from './api';
+import { apiFetch, loadStoredToken, refreshAccessToken, setAccessToken } from './api';
 import type { AdminScope } from './executive-offices';
 
 export type UserRole = 'member' | 'alumni' | 'executive' | 'staff' | 'super_admin' | 'guest';
@@ -60,6 +60,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       active = false;
     };
   }, [refreshUser]);
+
+  /** Keep access token fresh during long Hub sessions (e.g. bulk PIN entry). */
+  useEffect(() => {
+    if (!user) return;
+    const intervalMs = 20 * 60 * 1000;
+    const id = window.setInterval(() => {
+      void refreshAccessToken().catch(() => {
+        /* next API call will surface session error */
+      });
+    }, intervalMs);
+    return () => window.clearInterval(id);
+  }, [user]);
 
   const login = async (email: string, password: string) => {
     const data = await apiFetch<{ access_token: string; user: { id: string; role: UserRole } }>(

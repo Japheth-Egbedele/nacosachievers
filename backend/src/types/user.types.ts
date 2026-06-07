@@ -3,6 +3,8 @@ import type { UserRole } from '../constants/enums.js';
 export interface JwtPayload {
   sub: string;
   role: UserRole;
+  /** Present when user may issue student onboarding PINs */
+  can_issue_pins?: boolean;
   iat?: number;
   exp?: number;
 }
@@ -18,6 +20,7 @@ export interface OnboardingTokenPayload {
 export interface AuthUser {
   id: string;
   role: UserRole;
+  can_issue_pins?: boolean;
 }
 
 export interface UserRecord {
@@ -46,6 +49,7 @@ export interface UserRecord {
   wallet_balance: number;
   is_email_verified: boolean;
   is_active: boolean;
+  can_issue_pins?: boolean;
   notification_prefs: Record<string, unknown> | null;
   last_login_at: string | null;
   created_at: string;

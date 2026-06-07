@@ -9,7 +9,7 @@ import * as adminPinsController from '../controllers/admin-pins.controller.js';
 
 const router = Router();
 
-router.use(authMiddleware, requirePinIssuer);
+router.use(authMiddleware, catchAsync(requirePinIssuer));
 
 router.post('/generate', catchAsync(adminPinsController.generatePin));
 router.post(

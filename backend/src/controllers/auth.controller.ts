@@ -10,7 +10,8 @@ import * as authService from '../services/auth.service.js';
 const REFRESH_COOKIE_OPTIONS = {
   httpOnly: true,
   secure: env.NODE_ENV === 'production',
-  sameSite: 'lax' as const,
+  /** Cross-origin Hub (Vercel) → API (Render) requires SameSite=None */
+  sameSite: (env.NODE_ENV === 'production' ? 'none' : 'lax') as 'none' | 'lax',
   maxAge: REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
   path: '/api/v1/auth',
 };
@@ -29,7 +30,11 @@ function setRefreshCookie(res: Response, token: string): void {
  * @param res Express response
  */
 function clearRefreshCookie(res: Response): void {
-  res.clearCookie(REFRESH_COOKIE_NAME, { path: '/api/v1/auth' });
+  res.clearCookie(REFRESH_COOKIE_NAME, {
+    path: '/api/v1/auth',
+    secure: env.NODE_ENV === 'production',
+    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
+  });
 }
 
 /**

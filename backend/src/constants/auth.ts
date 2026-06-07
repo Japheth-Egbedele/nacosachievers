@@ -1,4 +1,4 @@
-export const ACCESS_TOKEN_EXPIRY = '15m';
+export const ACCESS_TOKEN_EXPIRY = '30m';
 export const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 export const ONBOARDING_TOKEN_EXPIRY = '30m';
 export const EMAIL_VERIFY_EXPIRY_HOURS = 24;

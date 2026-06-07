@@ -18,7 +18,7 @@ import type { UserRole } from '../constants/enums.js';
 import { expectedGraduationYear } from '../utils/academic-level.js';
 
 const USER_COLUMNS =
-  'id, matric_number, email, password_hash, role, first_name, last_name, display_name, bio, profile_photo_url, department_id, level, level_of_entry, year_of_admission, expected_graduation_year, actual_graduation_year, academic_status, admission_type, linkedin_url, github_url, other_social_links, email_visible, wallet_balance, is_email_verified, is_active, notification_prefs, last_login_at, created_at, updated_at';
+  'id, matric_number, email, password_hash, role, first_name, last_name, display_name, bio, profile_photo_url, department_id, level, level_of_entry, year_of_admission, expected_graduation_year, actual_graduation_year, academic_status, admission_type, linkedin_url, github_url, other_social_links, email_visible, wallet_balance, is_email_verified, is_active, can_issue_pins, notification_prefs, last_login_at, created_at, updated_at';
 
 export interface LoginResult {
   accessToken: string;
@@ -298,7 +298,11 @@ export async function verifyEmail(token: string): Promise<LoginResult> {
     );
   }
 
-  const accessToken = tokenService.signAccessToken(record.id, record.role);
+  const accessToken = tokenService.signAccessToken(
+    record.id,
+    record.role,
+    Boolean(record.can_issue_pins),
+  );
   const refreshToken = await createRefreshToken(record.id);
 
   return {
@@ -341,7 +345,11 @@ export async function login(email: string, password: string): Promise<LoginResul
     .update({ last_login_at: new Date().toISOString() })
     .eq('id', record.id);
 
-  const accessToken = tokenService.signAccessToken(record.id, record.role);
+  const accessToken = tokenService.signAccessToken(
+    record.id,
+    record.role,
+    Boolean(record.can_issue_pins),
+  );
   const refreshToken = await createRefreshToken(record.id);
 
   return {
@@ -399,7 +407,7 @@ export async function refreshSession(rawRefreshToken: string): Promise<LoginResu
 
   const { data: user } = await getSupabase()
     .from('users')
-    .select('id, role, is_active, is_email_verified')
+    .select('id, role, is_active, is_email_verified, can_issue_pins')
     .eq('id', stored.user_id)
     .maybeSingle();
 
@@ -407,7 +415,11 @@ export async function refreshSession(rawRefreshToken: string): Promise<LoginResu
     throw new AuthError(ERROR_MESSAGES.UNAUTHORIZED);
   }
 
-  const accessToken = tokenService.signAccessToken(user.id, user.role);
+  const accessToken = tokenService.signAccessToken(
+    user.id,
+    user.role,
+    Boolean(user.can_issue_pins),
+  );
   const refreshToken = await createRefreshToken(user.id);
 
   return {

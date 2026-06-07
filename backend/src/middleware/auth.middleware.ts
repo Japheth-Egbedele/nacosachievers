@@ -16,7 +16,11 @@ export function authMiddleware(req: Request, _res: Response, next: NextFunction)
   const token = header.slice(7);
   try {
     const payload = verifyAccessToken(token);
-    req.user = { id: payload.sub, role: payload.role };
+    req.user = {
+      id: payload.sub,
+      role: payload.role,
+      ...(payload.can_issue_pins ? { can_issue_pins: true } : {}),
+    };
     next();
   } catch {
     next(new AuthError(ERROR_MESSAGES.UNAUTHORIZED));
@@ -38,7 +42,11 @@ export function optionalAuthMiddleware(
   }
   try {
     const payload = verifyAccessToken(header.slice(7));
-    req.user = { id: payload.sub, role: payload.role };
+    req.user = {
+      id: payload.sub,
+      role: payload.role,
+      ...(payload.can_issue_pins ? { can_issue_pins: true } : {}),
+    };
   } catch {
     // ignore invalid optional token
   }

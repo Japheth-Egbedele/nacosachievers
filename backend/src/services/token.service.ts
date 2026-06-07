@@ -14,8 +14,16 @@ const publicKey = decodePemFromBase64(env.JWT_PUBLIC_KEY);
  * @param role User role
  * @returns JWT access token
  */
-export function signAccessToken(userId: string, role: UserRole): string {
-  const payload: JwtPayload = { sub: userId, role };
+export function signAccessToken(
+  userId: string,
+  role: UserRole,
+  canIssuePins = false,
+): string {
+  const payload: JwtPayload = {
+    sub: userId,
+    role,
+    ...(canIssuePins ? { can_issue_pins: true } : {}),
+  };
   return jwt.sign(payload, privateKey, {
     algorithm: 'RS256',
     expiresIn: ACCESS_TOKEN_EXPIRY,

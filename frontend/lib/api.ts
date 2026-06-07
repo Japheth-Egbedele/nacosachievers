@@ -32,7 +32,7 @@ export function loadStoredToken(): string | null {
   return t;
 }
 
-async function refreshAccessToken(): Promise<string | null> {
+export async function refreshAccessToken(): Promise<string | null> {
   const res = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
     method: 'POST',
     credentials: 'include',
@@ -44,6 +44,18 @@ async function refreshAccessToken(): Promise<string | null> {
     return json.data.access_token;
   }
   return null;
+}
+
+function sessionExpiredMessage(status: number, code?: string, fallback?: string): string {
+  if (status === 401) {
+    return code === 'AUTH_ERROR' || fallback === 'Unauthorized'
+      ? 'Session expired. Please log out and log in again, then retry.'
+      : (fallback ?? 'Session expired. Please log in again.');
+  }
+  if (status === 403 && code === 'PIN_ISSUER_FORBIDDEN') {
+    return 'You do not have permission to issue PINs. Ask a super admin to enable “Can issue PINs” on your account, then log in again.';
+  }
+  return fallback ?? 'Request failed';
 }
 
 export type PaginationMeta = {
@@ -82,7 +94,11 @@ export async function apiFetchPaginated<T>(
   const json = (await res.json()) as PaginatedApiSuccess<T[]> | ApiError;
   if (!res.ok || !json.success) {
     const err = json as ApiError;
-    throw new ApiClientError(err.error ?? 'Request failed', res.status, err.code);
+    throw new ApiClientError(
+      sessionExpiredMessage(res.status, err.code, err.error),
+      res.status,
+      err.code,
+    );
   }
   const ok = json as PaginatedApiSuccess<T[]>;
   return { items: ok.data ?? [], meta: ok.meta };
@@ -116,7 +132,11 @@ export async function apiFetch<T>(
   const json = (await res.json()) as ApiSuccess<T> | ApiError;
   if (!res.ok || !json.success) {
     const err = json as ApiError;
-    throw new ApiClientError(err.error ?? 'Request failed', res.status, err.code);
+    throw new ApiClientError(
+      sessionExpiredMessage(res.status, err.code, err.error),
+      res.status,
+      err.code,
+    );
   }
   return (json as ApiSuccess<T>).data;
 }

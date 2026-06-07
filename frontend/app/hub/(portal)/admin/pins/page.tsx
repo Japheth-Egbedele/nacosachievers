@@ -143,7 +143,11 @@ export default function AdminPinsPage() {
       setIssued(data.items);
       setStep('results');
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to generate PINs');
+      if (err instanceof ApiClientError && err.status === 401) {
+        setError(`${err.message} If this keeps happening, use the same browser you logged in with.`);
+      } else {
+        setError(err instanceof ApiClientError ? err.message : 'Failed to generate PINs');
+      }
     } finally {
       setBusy(false);
     }

@@ -1,7 +1,9 @@
 export const ERROR_MESSAGES = {
   INVALID_CREDENTIALS: 'Invalid credentials',
   UNAUTHORIZED: 'Unauthorized',
+  SESSION_EXPIRED: 'Session expired. Please log in again.',
   FORBIDDEN: 'Forbidden',
+  PIN_ISSUER_FORBIDDEN: 'You do not have permission to issue PINs.',
   NOT_FOUND: 'Resource not found',
   VALIDATION_FAILED: 'Validation failed',
   INTERNAL: 'Something went wrong',
