@@ -217,6 +217,15 @@ export async function invalidatePin(
     .eq('id', pinId);
 }
 
+/** Expires PIN rows immediately (bulk rollback). */
+export async function expirePinIds(pinIds: string[]): Promise<void> {
+  if (pinIds.length === 0) return;
+  await getSupabase()
+    .from('onboarding_pins')
+    .update({ expires_at: new Date().toISOString() })
+    .in('id', pinIds);
+}
+
 /** @deprecated Use validatePinByMatric */
 export async function validatePin(matricNumber: string, pin: string): Promise<OnboardingPinRow> {
   return validatePinByMatric(matricNumber, pin);

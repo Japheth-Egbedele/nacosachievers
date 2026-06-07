@@ -124,14 +124,14 @@ Roles: `guest` (no token), `member`, `alumni`, `staff`, `executive`, `super_admi
 | `/hub/elections`, `/hub/elections/:id` | Chapter elections & ballot | Member+ (verified email) |
 | `/hub/elections/:id/results` | Public shareable results (completed elections only) | Public |
 | `/hub/admin` | Admin overview | `executive` or `super_admin` |
-| `/hub/admin/pins` | Issue onboarding PINs | `super_admin` or `can_issue_pins` |
+| `/hub/admin/pins` | Issue onboarding PINs (modal: 1–10 student rows, paste matrics, copy one/all) | `super_admin` or `can_issue_pins` |
 | `/hub/admin/audit` | Security audit log | `executive` or `super_admin` |
 | `/hub/admin/elections` | Manage elections & candidates | `executive` or `super_admin` |
 | `/hub/admin/*` | Other admin modules | `executive` or `super_admin` |
 
 **Minimal launch:** public `/` is coming-soon; build Hub auth + elections first — see [DEV_TESTING.md](./DEV_TESTING.md).
 
-**PIN issuers:** Members with `can_issue_pins = true` (set by super admin on **Members**) see **Issue PINs** only — not full admin. Staff PINs require super admin.
+**PIN issuers:** Members with `can_issue_pins = true` (set by super admin on **Members**) see **Issue PINs** only — not full admin. Student PINs use the **Issue PIN(s)** modal (`HubModal` + row form in `lib/pin-helpers.ts`). Staff PINs (single work email) require super admin via the modal **Staff** tab.
 
 **Note:** `faculty_staff` (About page) and `lecturers` (Vault course roster) are **different data** — do not merge in UI.
 
@@ -238,7 +238,7 @@ Grouped by portal section — full list in [BUILD_PLAN.md](./BUILD_PLAN.md) Phas
 
 Highlights for FE admin UI:
 
-- **PINs** — `super_admin` or delegated `can_issue_pins` (student PINs only unless super_admin); staff PINs use work email
+- **PINs** — `super_admin` or delegated `can_issue_pins` (student PINs via bulk modal / `POST /admin/pins/generate-bulk`; staff single-issue via `POST /admin/pins/generate`)
 - **Members** — role/status; super_admin toggles **Can issue PINs**
 - **Audit log** — `GET /admin/audit-logs` (requires MANUAL_SETUP §2.6.1)
 - Analytics, settings (`super_admin` for settings)
@@ -247,6 +247,13 @@ Highlights for FE admin UI:
 - Yearbook editions, slots, rebuild PDF
 - Careers verification queue
 - Marketplace, events, CMS `PUT`, blog CRUD, gallery, faculty_staff, announcements
+
+### Admin PINs (`requirePinIssuer`)
+
+| Method | Path | Access | Notes |
+|--------|------|--------|-------|
+| POST | `/admin/pins/generate-bulk` | `super_admin` or `can_issue_pins` | **Student only.** Body: `{ pins: [...] }` — 1–10 items; unique `matric_number`; each needs `department_id`, `level_of_entry`; optional `year_of_admission`, `admission_type`. All-or-nothing on error. Rate limit 20/hr. Audit: `pin_generated_bulk`. |
+| POST | `/admin/pins/generate` | `super_admin` or `can_issue_pins` | Single student **or** staff (`staff_email` — **super_admin only** for staff). Kept for staff tab and backward compatibility. |
 
 ### Elections (member + public)
 

@@ -74,3 +74,12 @@ export const voteRateLimiter = rateLimit({
   keyGenerator: (req) => req.user?.id ?? req.ip ?? 'anonymous',
   handler: jsonHandler,
 });
+
+export const pinBulkRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id ?? req.ip ?? 'anonymous',
+  handler: jsonHandler,
+});

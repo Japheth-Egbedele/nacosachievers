@@ -5,6 +5,7 @@ import { sendSuccess } from '../utils/response.js';
 import * as auditService from '../services/audit.service.js';
 import * as pinService from '../services/pin.service.js';
 import {
+  generatePinBulkSchema,
   generatePinStaffSchema,
   generatePinStudentSchema,
 } from '../schemas/auth.schema.js';
@@ -80,6 +81,67 @@ export async function generatePin(req: Request, res: Response): Promise<void> {
     { id: result.id, pin: result.pin, matric_number: parsed.matric_number },
     HTTP_STATUS.CREATED,
     'PIN generated. Share securely with the member.',
+  );
+}
+
+/**
+ * POST /admin/pins/generate-bulk — up to 10 student PINs; all-or-nothing on failure.
+ */
+export async function generatePinBulk(req: Request, res: Response): Promise<void> {
+  const parsed = generatePinBulkSchema.parse(req.body);
+  const createdIds: string[] = [];
+  const items: Array<{
+    id: string;
+    pin: string;
+    matric_number: string;
+    level_of_entry: string;
+    year_of_admission?: number;
+  }> = [];
+
+  try {
+    for (const row of parsed.pins) {
+      const result = await pinService.createPin({
+        matricNumber: row.matric_number,
+        createdBy: req.user!.id,
+        departmentId: row.department_id,
+        levelOfEntry: row.level_of_entry,
+        admissionType: row.admission_type,
+        yearOfAdmission: row.year_of_admission,
+        allowStaff: false,
+      });
+      createdIds.push(result.id);
+      items.push({
+        id: result.id,
+        pin: result.pin,
+        matric_number: result.matric_number,
+        level_of_entry: row.level_of_entry,
+        ...(row.year_of_admission !== undefined
+          ? { year_of_admission: row.year_of_admission }
+          : {}),
+      });
+    }
+  } catch (err) {
+    await pinService.expirePinIds(createdIds);
+    throw err;
+  }
+
+  await auditService.logAudit({
+    actorId: req.user!.id,
+    action: 'pin_generated_bulk',
+    entityType: 'onboarding_pin',
+    metadata: {
+      count: items.length,
+      matric_numbers: items.map((i) => i.matric_number),
+      kind: 'student',
+    },
+    ipAddress: req.ip,
+  });
+
+  sendSuccess(
+    res,
+    { items },
+    HTTP_STATUS.CREATED,
+    `${items.length} PIN(s) generated. Share securely.`,
   );
 }
 

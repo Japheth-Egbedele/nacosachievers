@@ -65,4 +65,32 @@ export const generatePinStaffSchema = z.object({
   admission_type: z.enum(['regular', 'transfer', 'readmission']).optional(),
 });
 
+const generatePinBulkItemSchema = z.object({
+  matric_number: z.string().min(3).max(32),
+  department_id: z.string().uuid(),
+  level_of_entry: z.enum(['100', '200', '300', '400']),
+  year_of_admission: z.coerce.number().int().min(1990).max(2100).optional(),
+  admission_type: z.enum(['regular', 'transfer', 'readmission']).optional(),
+});
+
+export const generatePinBulkSchema = z
+  .object({
+    pins: z.array(generatePinBulkItemSchema).min(1).max(10),
+  })
+  .superRefine((data, ctx) => {
+    const normalized = data.pins.map((p) => p.matric_number.trim().toUpperCase());
+    const seen = new Set<string>();
+    for (let i = 0; i < normalized.length; i++) {
+      const m = normalized[i]!;
+      if (seen.has(m)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Duplicate matric number: ${m}`,
+          path: ['pins', i, 'matric_number'],
+        });
+      }
+      seen.add(m);
+    }
+  });
+
 export const validatePinSchema = z.union([validatePinStudentSchema, validatePinStaffSchema]);

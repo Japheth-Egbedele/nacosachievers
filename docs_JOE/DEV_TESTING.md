@@ -21,10 +21,37 @@ Set `NEXT_PUBLIC_API_URL=http://localhost:3000` in `frontend/.env.local`.
 
 ### Students
 
-1. **Super admin** or a delegated **PIN issuer** issues a PIN: **ID number**, **level of entry**, **department** (Computer Science), optional admission year.
-2. Student opens `/hub/register` → **Student** tab → ID + PIN → **year of admission** (if not on PIN), name, email, password.
-3. User **verifies email** (link from Resend, or `/hub/verify-email` with token).
-4. User **logs in** at `/hub/login` → can vote in **Elections** when an election is active.
+1. **Super admin** or a delegated **PIN issuer** opens **Admin → Issue PINs** → **Issue PIN(s)** modal.
+2. Add **1–10 rows** (matric, department, level, optional admission year). Optional: paste matrics (newline/comma/space separated) to fill matric fields; **Apply row 1 to all** copies department/level/admission year from the first row.
+3. **Generate** → copy one credential block or **Copy all** (matric + PIN + register link). Plaintext PINs are shown once.
+4. Student opens `/hub/register` → **Student** tab → ID + PIN → **year of admission** (if not on PIN), name, email, password.
+5. User **verifies email** (link from Resend, or `/hub/verify-email` with token).
+6. User **logs in** at `/hub/login` → can vote in **Elections** when an election is active.
+
+**Bulk API (same access as single issue):**
+
+```bash
+curl -X POST http://localhost:3000/api/v1/admin/pins/generate-bulk \
+  -H "Authorization: Bearer YOUR_ISSUER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pins": [
+      {
+        "matric_number": "AU23AY4578",
+        "department_id": "YOUR_CS_DEPT_UUID",
+        "level_of_entry": "100",
+        "year_of_admission": 2023
+      },
+      {
+        "matric_number": "AU23AY4579",
+        "department_id": "YOUR_CS_DEPT_UUID",
+        "level_of_entry": "100"
+      }
+    ]
+  }'
+```
+
+All-or-nothing: if any row fails validation, none are issued. Max **10** unique matrics per request; rate limited (20 bulk requests/hour per user).
 
 ### Delegated PIN issuers
 
@@ -39,7 +66,7 @@ Executives manage **elections** and the rest of admin; they do **not** get PIN a
 Department staff and lecturers register with `role = staff` using a **work email + PIN** (not matric).
 
 1. Run **MANUAL_SETUP §2.19.1** and **§2.6.1** in Supabase if not already applied.
-2. **Super admin only** → **PINs** → **Staff** mode → enter **work email** → generate PIN.
+2. **Super admin only** → **Issue PINs** → **Issue PIN(s)** modal → **Staff (single)** tab → enter **work email** → generate PIN.
 3. Staff opens `/hub/register` → **Staff** tab → work email + PIN → name, password → verify email → can vote in elections.
 4. Staff do **not** see Admin nav unless promoted to executive or granted PIN issuer separately.
 
@@ -78,19 +105,20 @@ Use the seeded `super_admin` from §2.19 — log in at `/hub/login`.
 
 **Option A — PIN flow**
 
-1. Log in as super_admin → **Admin** → **PINs**.
-2. Create a PIN:
+1. Log in as super_admin or delegated issuer → **Admin → Issue PINs** → **Issue PIN(s)**.
+2. For a single student, use one row; for a batch, add rows (max 10) or paste matrics → **Generate** → **Copy all**.
+3. Or via API (bulk, 1–10 matrics):
 
 ```bash
-curl -X POST http://localhost:3000/api/v1/admin/pins \
+curl -X POST http://localhost:3000/api/v1/admin/pins/generate-bulk \
   -H "Authorization: Bearer YOUR_ADMIN_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"matric_number":"CS/2023/001"}'
+  -d '{"pins":[{"matric_number":"CS/2023/001","department_id":"YOUR_DEPT_UUID","level_of_entry":"100"}]}'
 ```
 
-Save the **plaintext PIN** from the response (shown once).
+Save the **plaintext PIN(s)** from the response (shown once).
 
-3. Open `/hub/register` → enter matric + PIN → complete registration.
+4. Open `/hub/register` → enter matric + PIN → complete registration.
 4. Verify email (Resend link, or dev SQL):
 
 ```sql
@@ -98,6 +126,14 @@ update users set is_email_verified = true where matric_number = 'CS/2023/001';
 ```
 
 5. Log in as the new member.
+
+### Bulk PIN smoke test (delegated issuer)
+
+1. Super admin → **Members** → enable **Can issue PINs** on a test rep account.
+2. Log in as that rep → **Issue PINs** → **Issue PIN(s)**.
+3. Paste 3–10 matrics (one per line) → **Apply row 1 to all** (set department + level on row 1 first) → **Generate**.
+4. **Copy all** → confirm blocks include matric, PIN, and `/hub/register` URL separated by `---`.
+5. Register one matric from the batch; confirm duplicate matric in a second bulk request returns **400** (all-or-nothing).
 
 **Option B — SQL mock voters (no Resend domain)**
 
