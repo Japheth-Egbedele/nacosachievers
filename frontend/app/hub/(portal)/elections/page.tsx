@@ -69,9 +69,11 @@ export default function ElectionsPage() {
                 href={`/hub/elections/${e.id}`}
                 className="hub-card-hover hub-card block p-5 dark:border-zinc-800 dark:bg-zinc-900/80"
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">{e.title}</h2>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-base font-semibold text-zinc-900 sm:text-lg dark:text-white">
+                      {e.title}
+                    </h2>
                     {e.description && (
                       <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-zinc-500">
                         {e.description}

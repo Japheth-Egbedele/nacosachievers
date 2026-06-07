@@ -4,6 +4,7 @@ import {
   Home,
   Key,
   LogOut,
+  Menu,
   Settings,
   User,
   Wallet,
@@ -48,4 +49,8 @@ export function IconVault({ className = '' }: IconProps) {
 
 export function IconWallet({ className = '' }: IconProps) {
   return <Wallet className={`${iconBase} ${className}`} strokeWidth={1.75} aria-hidden />;
+}
+
+export function IconMenu({ className = '' }: IconProps) {
+  return <Menu className={`${iconBase} ${className}`} strokeWidth={1.75} aria-hidden />;
 }

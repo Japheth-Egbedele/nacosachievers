@@ -57,6 +57,7 @@
 body {
   background-color: var(--color-hub-bg);
   color: var(--color-hub-text);
+  overflow-x: hidden;
 }
 
 .hub-display {
