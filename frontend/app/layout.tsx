@@ -18,8 +18,12 @@ export const metadata: Metadata = {
   title: "NACOS Achievers",
   description: "NACOS Achievers Portal",
   icons: {
-    icon: '/logo.png',
-    apple: '/logo.png',
+    icon: [
+      { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon-16.png', sizes: '16x16', type: 'image/png' },
+    ],
+    apple: [{ url: '/apple-icon.png', sizes: '180x180', type: 'image/png' }],
+    shortcut: '/favicon-32.png',
   },
 };
 
