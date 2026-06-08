@@ -9,8 +9,8 @@ import HubAuthLayout from '@/app/hub/components/ui/HubAuthLayout';
 import HubField, { HubTextInput } from '@/app/hub/components/ui/HubField';
 import HubPillTabs from '@/app/hub/components/ui/HubPillTabs';
 import { hubBtnGhost, hubBtnPrimary } from '@/lib/hub-styles';
-import { apiFetch, ApiClientError } from '@/lib/api';
-import { pinValidationErrorMessage } from '@/lib/pin-errors';
+import { apiFetch } from '@/lib/api';
+import { pinValidationErrorMessage, registrationErrorMessage } from '@/lib/pin-errors';
 
 type RegisterMode = 'student' | 'staff';
 
@@ -96,7 +96,7 @@ export default function HubRegisterPage() {
       if (email.trim()) qs.set('email', email.trim());
       router.push(`/hub/verify-email?${qs.toString()}`);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Registration failed');
+      setError(registrationErrorMessage(err));
     } finally {
       setBusy(false);
     }

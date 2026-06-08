@@ -16,6 +16,9 @@ import { HTTP_STATUS } from './constants/http.js';
 export function createApp(): express.Application {
   const app = express();
 
+  /** Render / reverse proxies — required for accurate req.ip in rate limiters */
+  app.set('trust proxy', 1);
+
   app.use(
     pinoHttp({
       logger,

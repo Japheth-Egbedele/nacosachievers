@@ -3,8 +3,12 @@ import { catchAsync } from '../utils/catch-async.js';
 import { validate } from '../middleware/validate.js';
 import {
   authRateLimiter,
+  correctPendingEmailRateLimiter,
   loginRateLimiter,
   registerRateLimiter,
+  resendVerificationRateLimiter,
+  validatePinRateLimiter,
+  verifyEmailRateLimiter,
 } from '../middleware/rate-limiter.js';
 import {
   correctPendingEmailSchema,
@@ -22,7 +26,7 @@ const router = Router();
 
 router.post(
   '/validate-pin',
-  authRateLimiter,
+  validatePinRateLimiter,
   validate(validatePinSchema),
   catchAsync(authController.validatePin),
 );
@@ -36,21 +40,21 @@ router.post(
 
 router.post(
   '/verify-email',
-  authRateLimiter,
+  verifyEmailRateLimiter,
   validate(verifyEmailSchema),
   catchAsync(authController.verifyEmail),
 );
 
 router.post(
   '/resend-verification',
-  authRateLimiter,
+  resendVerificationRateLimiter,
   validate(resendVerificationSchema),
   catchAsync(authController.resendVerification),
 );
 
 router.post(
   '/correct-pending-email',
-  authRateLimiter,
+  correctPendingEmailRateLimiter,
   validate(correctPendingEmailSchema),
   catchAsync(authController.correctPendingEmail),
 );

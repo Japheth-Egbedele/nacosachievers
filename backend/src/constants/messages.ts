@@ -12,6 +12,8 @@ export const ERROR_MESSAGES = {
   PIN_ALREADY_USED: 'This PIN has already been used. Ask admin for a new PIN.',
   PIN_EXPIRED: 'Your PIN has expired. Ask admin for a new PIN.',
   INVALID_PIN: 'Incorrect PIN. Double-check the code from your admin.',
+  PIN_VALIDATION_LOCKED:
+    'Too many incorrect PIN attempts. Try again later or contact your chapter admin.',
   EMAIL_NOT_VERIFIED: 'Email verification required',
   ACCOUNT_INACTIVE: 'Account is inactive',
 } as const;

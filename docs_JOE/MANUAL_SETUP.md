@@ -867,6 +867,28 @@ on conflict (section_key) do nothing;
 
 **Department:** ensure Computer Science exists (§2.3). PIN issuance and vault course creation use `GET /api/v1/departments`.
 
+### 2.6.3 — PIN validation lockouts (brute-force protection)
+
+Run in **Supabase → SQL Editor** (required for onboarding at scale):
+
+```sql
+create table if not exists pin_validation_lockouts (
+  id uuid primary key default uuid_generate_v4(),
+  identifier text not null unique,
+  identifier_kind text not null check (identifier_kind in ('matric', 'staff_email')),
+  failed_attempts integer not null default 0,
+  locked_until timestamptz,
+  last_failed_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_pin_lockouts_locked
+  on pin_validation_lockouts (locked_until)
+  where locked_until is not null;
+```
+
+Tracks failed PIN attempts per matric or staff email. After 10 wrong PINs within an hour, validation locks for 30 minutes. Cleared automatically on successful PIN validation or when the lock expires.
+
 **Session tools (super admin):** Hub → Admin → Settings → **Promote session** / **Graduate cohort** (or `POST /api/v1/admin/session/promote` after preview).
 
 ---

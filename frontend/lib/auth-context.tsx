@@ -26,6 +26,7 @@ interface AuthContextValue {
   refreshUser: () => Promise<void>;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  isStaff: boolean;
   canIssuePins: boolean;
   hasAdminScope: (scope: AdminScope) => boolean;
 }
@@ -97,6 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const isSuperAdmin = user?.role === 'super_admin';
+  const isStaff = user?.role === 'staff';
   const isAdmin = isSuperAdmin || user?.role === 'executive';
   const canIssuePins = isSuperAdmin || Boolean(user?.can_issue_pins);
 
@@ -122,6 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         refreshUser,
         isAdmin,
         isSuperAdmin,
+        isStaff,
         canIssuePins,
         hasAdminScope,
       }}

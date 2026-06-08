@@ -11,6 +11,7 @@ import { AuthError, ValidationError } from '../utils/errors.js';
 import { ERROR_MESSAGES } from '../constants/messages.js';
 import { generateSecureToken, sha256 } from '../utils/crypto.js';
 import * as pinService from './pin.service.js';
+import * as pinLockoutService from './pin-lockout.service.js';
 import * as tokenService from './token.service.js';
 import * as emailService from './email.service.js';
 import type { UserRecord } from '../types/user.types.js';
@@ -29,11 +30,14 @@ export interface LoginResult {
 /**
  * Validates student or staff PIN and returns onboarding token.
  */
-export async function validatePinAndIssueToken(input: {
-  matricNumber?: string;
-  staffEmail?: string;
-  pin: string;
-}): Promise<{
+export async function validatePinAndIssueToken(
+  input: {
+    matricNumber?: string;
+    staffEmail?: string;
+    pin: string;
+  },
+  ipAddress?: string | null,
+): Promise<{
   onboardingToken: string;
   pin_preview: {
     level_of_entry: string | null;
@@ -42,19 +46,40 @@ export async function validatePinAndIssueToken(input: {
     is_staff: boolean;
   };
 }> {
-  const row = input.staffEmail
-    ? await pinService.validatePinByStaffEmail(input.staffEmail, input.pin)
-    : await pinService.validatePinByMatric(input.matricNumber!, input.pin);
-  const isStaff = row.level_of_entry === 'staff' || Boolean(row.staff_email);
-  return {
-    onboardingToken: tokenService.signOnboardingToken(row.id),
-    pin_preview: {
-      level_of_entry: row.level_of_entry,
-      department_id: row.department_id,
-      year_of_admission: row.year_of_admission,
-      is_staff: isStaff,
-    },
-  };
+  await pinLockoutService.assertPinValidationAllowed({
+    matricNumber: input.matricNumber,
+    staffEmail: input.staffEmail,
+  });
+
+  try {
+    const row = input.staffEmail
+      ? await pinService.validatePinByStaffEmail(input.staffEmail, input.pin)
+      : await pinService.validatePinByMatric(input.matricNumber!, input.pin);
+
+    await pinLockoutService.clearPinValidationLockout({
+      matricNumber: input.matricNumber,
+      staffEmail: input.staffEmail,
+    });
+
+    const isStaff = row.level_of_entry === 'staff' || Boolean(row.staff_email);
+    return {
+      onboardingToken: tokenService.signOnboardingToken(row.id),
+      pin_preview: {
+        level_of_entry: row.level_of_entry,
+        department_id: row.department_id,
+        year_of_admission: row.year_of_admission,
+        is_staff: isStaff,
+      },
+    };
+  } catch (err) {
+    if (err instanceof ValidationError && err.code === 'INVALID_PIN') {
+      await pinLockoutService.recordPinValidationFailure(
+        { matricNumber: input.matricNumber, staffEmail: input.staffEmail },
+        ipAddress,
+      );
+    }
+    throw err;
+  }
 }
 
 /**

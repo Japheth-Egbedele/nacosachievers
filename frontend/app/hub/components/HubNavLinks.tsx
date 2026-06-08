@@ -12,6 +12,7 @@ import {
 } from '@/app/hub/components/ui/HubIcons';
 import type { AuthUser } from '@/lib/auth-context';
 import type { getHubGreeting } from '@/lib/hub-greeting';
+import { staffElectionLinks } from '@/lib/staff-portal';
 
 export const memberLinks = [
   { href: '/hub/elections', label: 'Elections', icon: IconElections },
@@ -29,6 +30,7 @@ type HubNavLinksProps = {
   user: AuthUser;
   greeting: ReturnType<typeof getHubGreeting>;
   isAdmin: boolean;
+  isStaff: boolean;
   canIssuePins: boolean;
   onNavigate?: () => void;
   onLogout: () => void;
@@ -39,6 +41,7 @@ export default function HubNavLinks({
   user,
   greeting,
   isAdmin,
+  isStaff,
   canIssuePins,
   onNavigate,
   onLogout,
@@ -54,13 +57,21 @@ export default function HubNavLinks({
       ? 'hub-nav-active flex min-h-[44px] items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold'
       : 'flex min-h-[44px] items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800';
 
+  const links = isStaff
+    ? staffElectionLinks.map(({ href, label }) => ({
+        href,
+        label,
+        icon: IconElections,
+      }))
+    : memberLinks.map((link) => ({ ...link }));
+
   return (
     <>
       <nav className="flex-1 space-y-1 p-3">
         <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
           Menu
         </p>
-        {memberLinks.map(({ href, label, icon: Icon }) => {
+        {links.map(({ href, label, icon: Icon }) => {
           const active = navActive(pathname, href);
           return (
             <Link
@@ -76,7 +87,7 @@ export default function HubNavLinks({
             </Link>
           );
         })}
-        {canIssuePins && (
+        {canIssuePins && !isStaff && (
           <Link
             href="/hub/admin/pins"
             onClick={onNavigate}
@@ -92,7 +103,7 @@ export default function HubNavLinks({
             Issue PINs
           </Link>
         )}
-        {isAdmin && (
+        {isAdmin && !isStaff && (
           <>
             <p className="mt-6 px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
               Chapter

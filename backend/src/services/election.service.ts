@@ -90,13 +90,16 @@ async function assertUserCanVote(userId: string): Promise<void> {
     throw new ForbiddenError('Please verify your email before voting');
   }
   if (data.role === 'guest') throw new ForbiddenError('Not eligible to vote');
+  if (data.role === 'staff') {
+    throw new ForbiddenError('Lecturers and staff cannot vote in chapter elections');
+  }
   if (data.role === 'super_admin') {
     throw new ForbiddenError('Super admin accounts cannot vote; use a student test account');
   }
 }
 
 function isVoterRole(role: string): boolean {
-  return role === 'member' || role === 'alumni' || role === 'executive' || role === 'staff';
+  return role === 'member' || role === 'alumni' || role === 'executive';
 }
 
 async function fetchPositions(electionId: string): Promise<PositionRow[]> {
@@ -128,7 +131,7 @@ async function countEligibleVoters(): Promise<number> {
     .select('id', { count: 'exact', head: true })
     .eq('is_active', true)
     .eq('is_email_verified', true)
-    .in('role', ['member', 'alumni', 'executive', 'staff']);
+    .in('role', ['member', 'alumni', 'executive']);
 
   if (error) throw error;
   return count ?? 0;
@@ -756,7 +759,7 @@ export async function buildExtendedAnalytics(
     .select('level')
     .eq('is_active', true)
     .eq('is_email_verified', true)
-    .in('role', ['member', 'alumni', 'executive', 'staff']);
+    .in('role', ['member', 'alumni', 'executive']);
 
   const eligibleByLevel = new Map<string, number>();
   for (const row of eligibleRows ?? []) {
@@ -850,7 +853,7 @@ export async function getAdminStats() {
   const { count: totalUsers } = await getSupabase()
     .from('users')
     .select('*', { count: 'exact', head: true })
-    .in('role', ['member', 'alumni', 'executive', 'staff']);
+    .in('role', ['member', 'alumni', 'executive']);
 
   const { data: elections } = await getSupabase()
     .from('elections_with_status')

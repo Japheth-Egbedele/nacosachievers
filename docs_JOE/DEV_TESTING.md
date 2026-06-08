@@ -14,7 +14,7 @@ Set `NEXT_PUBLIC_API_URL=http://localhost:3000` in `frontend/.env.local`.
 
 ## Database
 
-1. Run all SQL in [MANUAL_SETUP.md](./MANUAL_SETUP.md) including **§2.6.1**, **§2.6.2**, **§2.19.1** (staff role), and **§2.22 Elections**.
+1. Run all SQL in [MANUAL_SETUP.md](./MANUAL_SETUP.md) including **§2.6.1**, **§2.6.2**, **§2.6.3** (PIN lockouts), **§2.19.1** (staff role), and **§2.22 Elections**.
 2. Seed super admin (§2.19).
 
 ## How hub onboarding works
@@ -53,6 +53,31 @@ curl -X POST http://localhost:3000/api/v1/admin/pins/generate-bulk \
 
 All-or-nothing: if any row fails validation, none are issued. Max **10** unique matrics per request; rate limited (20 bulk requests/hour per user).
 
+### Onboarding day — rate limits and lockouts
+
+**Symptom:** “Too many requests” during a cohort signup (often on shared campus WiFi).
+
+**Cause (fixed in API):** Auth routes previously shared a **3/hour per IP** bucket. Many students on one network hit the cap quickly.
+
+**Current limits (per matric/email where noted):**
+
+| Step | Limit |
+|------|--------|
+| Validate PIN | 40 / 15 min per matric + IP (failed attempts only) |
+| Register | 15 / hour per email + IP (failed only) |
+| Verify email | 25 / hour per token + IP |
+| Resend verification | 6 / hour per email + IP |
+
+**PIN brute-force lockout:** After **10 wrong PINs** for the same matric (within 1 hour), validation locks for **30 minutes**. Audit action: `pin_validation_locked`. Super admin can clear a row in Supabase:
+
+```sql
+delete from pin_validation_lockouts where identifier = 'AU23AY4578';
+```
+
+**Requires:** MANUAL_SETUP **§2.6.3** (`pin_validation_lockouts` table).
+
+**Mitigation during launch:** Stagger signups; if one building/WiFi is blocked, use mobile data temporarily.
+
 ### Delegated PIN issuers
 
 1. Super admin → **Admin → Members** → enable **Can issue PINs** on a trusted member (e.g. course rep).
@@ -67,7 +92,7 @@ Department staff and lecturers register with `role = staff` using a **work email
 
 1. Run **MANUAL_SETUP §2.19.1** and **§2.6.1** in Supabase if not already applied.
 2. **Super admin only** → **Issue PINs** → **Issue PIN(s)** modal → **Staff (single)** tab → enter **work email** → generate PIN.
-3. Staff opens `/hub/register` → **Staff** tab → work email + PIN → name, password → verify email → can vote in elections.
+3. Staff opens `/hub/register` → **Staff** tab → work email + PIN → name, password → verify email → Hub shows **Election results** only (lecturers **cannot vote**).
 4. Staff do **not** see Admin nav unless promoted to executive or granted PIN issuer separately.
 
 **Not the same as:** vault **`lecturers`** (course roster) or CMS **`faculty_staff`** (About page) — those are separate directories, not hub logins.
@@ -81,7 +106,7 @@ curl -X POST http://localhost:3000/api/v1/admin/pins/generate \
   -d '{"staff_email":"lecturer@achievers.edu.ng","level_of_entry":"staff"}'
 ```
 
-After registration, confirm `users.role = staff` and the account can vote when email is verified.
+After registration, confirm `users.role = staff`. Lecturers see `/hub/elections` only (results when closed); vault, wallet, and profile are hidden.
 
 ## Profile & account deletion
 

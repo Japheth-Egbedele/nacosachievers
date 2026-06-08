@@ -5,6 +5,13 @@ export const EMAIL_VERIFY_EXPIRY_HOURS = 24;
 export const PASSWORD_RESET_EXPIRY_HOURS = 1;
 export const PIN_EXPIRY_HOURS = 72;
 export const BCRYPT_ROUNDS = 12;
+
+/** Failed wrong-PIN attempts before temporary lockout (per matric / staff email). */
+export const PIN_MAX_FAILED_ATTEMPTS = 10;
+/** How long validation stays locked after max failures. */
+export const PIN_LOCKOUT_MINUTES = 30;
+/** Reset failure counter if no failures in this window. */
+export const PIN_FAILURE_WINDOW_MINUTES = 60;
 export const REFRESH_COOKIE_NAME = 'refresh_token';
 
 export const DEFAULT_PAGE = 1;

@@ -6,6 +6,7 @@ import { SpinnerCenter } from '@/app/components/Spinner';
 import HubPageHeader from '@/app/hub/components/ui/HubPageHeader';
 import HubPillTabs from '@/app/hub/components/ui/HubPillTabs';
 import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 
 interface Election {
   id: string;
@@ -25,8 +26,9 @@ const tabs = [
 ];
 
 export default function ElectionsPage() {
+  const { isStaff } = useAuth();
   const [elections, setElections] = useState<Election[]>([]);
-  const [filter, setFilter] = useState<string>('active');
+  const [filter, setFilter] = useState<string>(isStaff ? 'completed' : 'active');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -41,8 +43,12 @@ export default function ElectionsPage() {
   return (
     <div>
       <HubPageHeader
-        title="Chapter elections"
-        description="Vote in live elections. View final results when voting closes — one ballot per election."
+        title={isStaff ? 'Election results' : 'Chapter elections'}
+        description={
+          isStaff
+            ? 'View final chapter election results when voting closes. Lecturers do not vote in student elections.'
+            : 'Vote in live elections. View final results when voting closes — one ballot per election.'
+        }
       />
 
       <HubPillTabs tabs={tabs} active={filter} onChange={setFilter} />
@@ -86,7 +92,7 @@ export default function ElectionsPage() {
                   <span>
                     {formatDate(e.start_date)} — {formatDate(e.end_date)}
                   </span>
-                  {e.status === 'active' && (
+                  {e.status === 'active' && !isStaff && (
                     <span
                       className={
                         e.user_has_voted
@@ -95,6 +101,11 @@ export default function ElectionsPage() {
                       }
                     >
                       {e.user_has_voted ? 'You voted ✓' : 'Vote now →'}
+                    </span>
+                  )}
+                  {e.status === 'active' && isStaff && (
+                    <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 font-medium text-zinc-600">
+                      Voting open — results after close
                     </span>
                   )}
                   {e.status === 'completed' && (

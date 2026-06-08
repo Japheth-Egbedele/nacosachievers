@@ -46,11 +46,14 @@ export async function validatePin(req: Request, res: Response): Promise<void> {
     staff_email?: string;
     pin: string;
   };
-  const result = await authService.validatePinAndIssueToken({
-    matricNumber: body.matric_number,
-    staffEmail: body.staff_email,
-    pin: body.pin,
-  });
+  const result = await authService.validatePinAndIssueToken(
+    {
+      matricNumber: body.matric_number,
+      staffEmail: body.staff_email,
+      pin: body.pin,
+    },
+    req.ip,
+  );
   sendSuccess(res, { onboarding_token: result.onboardingToken, pin_preview: result.pin_preview }, HTTP_STATUS.OK);
 }
 

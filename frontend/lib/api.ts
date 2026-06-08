@@ -46,7 +46,10 @@ export async function refreshAccessToken(): Promise<string | null> {
   return null;
 }
 
-function sessionExpiredMessage(status: number, code?: string, fallback?: string): string {
+function apiErrorMessage(status: number, code?: string, fallback?: string): string {
+  if (status === 429 || code === 'RATE_LIMIT') {
+    return 'Too many attempts. Wait a few minutes and try again. If you are on campus WiFi, try mobile data or stagger signups in small groups.';
+  }
   if (status === 401) {
     return code === 'AUTH_ERROR' || fallback === 'Unauthorized'
       ? 'Session expired. Please log out and log in again, then retry.'
@@ -95,7 +98,7 @@ export async function apiFetchPaginated<T>(
   if (!res.ok || !json.success) {
     const err = json as ApiError;
     throw new ApiClientError(
-      sessionExpiredMessage(res.status, err.code, err.error),
+      apiErrorMessage(res.status, err.code, err.error),
       res.status,
       err.code,
     );
@@ -133,7 +136,7 @@ export async function apiFetch<T>(
   if (!res.ok || !json.success) {
     const err = json as ApiError;
     throw new ApiClientError(
-      sessionExpiredMessage(res.status, err.code, err.error),
+      apiErrorMessage(res.status, err.code, err.error),
       res.status,
       err.code,
     );

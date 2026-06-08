@@ -31,7 +31,7 @@ interface ElectionDetail {
 
 export default function ElectionDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { isSuperAdmin } = useAuth();
+  const { isSuperAdmin, isStaff } = useAuth();
   const [data, setData] = useState<ElectionDetail | null>(null);
   const [selected, setSelected] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
@@ -143,6 +143,13 @@ export default function ElectionDetailPage() {
       <p className="mt-2 inline-flex rounded-full bg-emerald-50 px-3 py-0.5 text-xs font-bold uppercase tracking-wide text-emerald-800 ring-1 ring-emerald-200">
         {election.status === 'active' ? 'Live' : election.status}
       </p>
+
+      {isStaff && election.status === 'active' && (
+        <HubAlert variant="info" className="mt-6">
+          Lecturers can view results after voting closes. You cannot cast a ballot in chapter
+          elections.
+        </HubAlert>
+      )}
 
       {isSuperAdmin && (
         <HubAlert variant="info" className="mt-6">

@@ -1,21 +1,33 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SpinnerCenter } from '@/app/components/Spinner';
 import BrandLogo from '@/app/components/BrandLogo';
 import HubNavLinks from '@/app/hub/components/HubNavLinks';
 import HubDrawer from '@/app/hub/components/ui/HubDrawer';
 import { IconMenu } from '@/app/hub/components/ui/HubIcons';
 import { getHubGreeting } from '@/lib/hub-greeting';
+import { isStaffPortalPath } from '@/lib/staff-portal';
 import { useAuth } from '@/lib/auth-context';
 
 export default function HubShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, logout, isAdmin, canIssuePins } = useAuth();
+  const { user, loading, logout, isAdmin, isStaff, canIssuePins } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const greeting = getHubGreeting(user);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) {
+      router.replace('/hub/login');
+      return;
+    }
+    if (isStaff && pathname && !isStaffPortalPath(pathname)) {
+      router.replace('/hub/elections');
+    }
+  }, [loading, user, isStaff, pathname, router]);
 
   if (loading) {
     return (
@@ -26,7 +38,6 @@ export default function HubShell({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) {
-    router.replace('/hub/login');
     return null;
   }
 
@@ -44,6 +55,7 @@ export default function HubShell({ children }: { children: React.ReactNode }) {
     user,
     greeting,
     isAdmin,
+    isStaff,
     canIssuePins,
     onLogout: handleLogout,
   };
