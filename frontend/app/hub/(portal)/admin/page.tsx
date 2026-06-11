@@ -1,8 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
+import AdminStatTile from '@/app/hub/components/admin/AdminStatTile';
+import MemberScopeSelect from '@/app/hub/components/admin/MemberScopeSelect';
 import { apiFetch } from '@/lib/api';
+import {
+  levelLabel,
+  MEMBER_LEVELS,
+  readStoredMemberScope,
+  storeMemberScope,
+  type MemberScope,
+  type MemberStats,
+} from '@/lib/member-stats';
 
 type Analytics = {
   member_count: number;
@@ -13,12 +24,26 @@ type Analytics = {
 
 export default function AdminOverviewPage() {
   const [stats, setStats] = useState<Analytics | null>(null);
+  const [memberScope, setMemberScope] = useState<MemberScope>('chapter');
+  const [memberStats, setMemberStats] = useState<MemberStats | null>(null);
 
   useEffect(() => {
+    setMemberScope(readStoredMemberScope());
     apiFetch<Analytics>('/admin/analytics')
       .then(setStats)
       .catch(() => setStats(null));
   }, []);
+
+  useEffect(() => {
+    apiFetch<MemberStats>(`/admin/members/stats?scope=${memberScope}`)
+      .then(setMemberStats)
+      .catch(() => setMemberStats(null));
+  }, [memberScope]);
+
+  function changeScope(next: MemberScope) {
+    setMemberScope(next);
+    storeMemberScope(next);
+  }
 
   const cards = [
     { label: 'Members', value: stats?.member_count ?? '—' },
@@ -26,6 +51,22 @@ export default function AdminOverviewPage() {
     { label: 'Credits distributed', value: stats?.credits_distributed ?? '—' },
     { label: 'Active sessions', value: stats?.active_sessions ?? '—' },
   ];
+
+  const levelTiles = useMemo(() => {
+    if (!memberStats) return [];
+    const tiles = [
+      { label: 'Total', value: String(memberStats.total), level: null as string | null },
+      ...MEMBER_LEVELS.map((lv) => ({
+        label: levelLabel(lv),
+        value: String(memberStats.by_level[lv]),
+        level: lv,
+      })),
+    ];
+    if (memberStats.unassigned > 0) {
+      tiles.push({ label: 'Unassigned', value: String(memberStats.unassigned), level: null });
+    }
+    return tiles;
+  }, [memberStats]);
 
   return (
     <div>
@@ -44,6 +85,39 @@ export default function AdminOverviewPage() {
           </div>
         ))}
       </div>
+
+      <section className="mt-8">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-[var(--color-hub-text)]">Members by level</h2>
+            <p className="mt-1 text-sm text-[var(--color-hub-text-secondary)]">
+              Counts for the selected account scope.{' '}
+              <Link href="/hub/admin/members" className="hub-link">
+                Open members →
+              </Link>
+            </p>
+          </div>
+          <MemberScopeSelect value={memberScope} onChange={changeScope} />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          {levelTiles.map((t) => (
+            <Link
+              key={t.label}
+              href={
+                t.level
+                  ? `/hub/admin/members?scope=${memberScope}&level=${t.level}`
+                  : `/hub/admin/members?scope=${memberScope}`
+              }
+              className="block transition hover:opacity-90"
+            >
+              <AdminStatTile label={t.label} value={t.value} />
+            </Link>
+          ))}
+          {levelTiles.length === 0 && (
+            <p className="text-sm text-[var(--color-hub-text-secondary)]">Loading level counts…</p>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { getSupabase } from '../config/supabase.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../utils/errors.js';
+import { MEMBER_LEVEL_BUCKETS } from '../utils/member-scope.js';
 
 type SupabaseErrorLike = { code?: string; message?: string };
 
@@ -747,7 +748,7 @@ export async function deleteCandidate(candidateId: string) {
   if (error) throw error;
 }
 
-const LEVEL_KEYS = ['100', '200', '300', '400', 'staff'] as const;
+const LEVEL_KEYS = MEMBER_LEVEL_BUCKETS;
 
 export async function buildExtendedAnalytics(
   electionId: string,

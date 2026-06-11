@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { SpinnerCenter } from '@/app/components/Spinner';
 import HubAlert from '@/app/hub/components/ui/HubAlert';
 import HubPageHeader from '@/app/hub/components/ui/HubPageHeader';
+import AdminStatTile from '@/app/hub/components/admin/AdminStatTile';
 import { apiFetch, ApiClientError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
@@ -135,10 +136,10 @@ export default function AdminElectionsPage() {
             </h2>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <StatTile label="Active elections" value={String(liveStats.stats.active_elections)} />
-            <StatTile label="Total votes" value={String(liveStats.stats.total_votes)} />
-            <StatTile label="Eligible members" value={String(liveStats.stats.total_users)} />
-            <StatTile label="All elections" value={String(liveStats.stats.total_elections)} />
+            <AdminStatTile label="Active elections" value={String(liveStats.stats.active_elections)} />
+            <AdminStatTile label="Total votes" value={String(liveStats.stats.total_votes)} />
+            <AdminStatTile label="Eligible members" value={String(liveStats.stats.total_users)} />
+            <AdminStatTile label="All elections" value={String(liveStats.stats.total_elections)} />
           </div>
           {liveStats.recent_voters.length > 0 && (
             <div className="hub-card-muted p-4">
@@ -240,17 +241,6 @@ export default function AdminElectionsPage() {
           <p className="hub-empty-state">No elections yet. Create one to get started.</p>
         )}
       </ul>
-    </div>
-  );
-}
-
-function StatTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="hub-card p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-hub-muted)]">
-        {label}
-      </p>
-      <p className="mt-1 text-2xl font-bold tabular-nums text-[var(--color-brand)]">{value}</p>
     </div>
   );
 }

@@ -2,11 +2,15 @@ import { z } from 'zod';
 import { USER_ROLES, USER_LEVELS, ACADEMIC_STATUSES } from '../constants/enums.js';
 import { ADMIN_SCOPES } from '../constants/admin-scopes.js';
 import { EXECUTIVE_OFFICES } from '../constants/executive-offices.js';
+import { MEMBER_SCOPES } from '../utils/member-scope.js';
+
+export const memberScopeSchema = z.enum(MEMBER_SCOPES).optional();
 
 export const membersQuerySchema = z.object({
   page: z.coerce.number().optional(),
   limit: z.coerce.number().optional(),
   search: z.string().optional(),
+  scope: memberScopeSchema,
   role: z.enum(USER_ROLES).optional(),
   level: z.enum(USER_LEVELS).optional(),
   status: z.enum(ACADEMIC_STATUSES).optional(),
@@ -14,6 +18,10 @@ export const membersQuerySchema = z.object({
     .enum(['true', 'false'])
     .transform((v) => v === 'true')
     .optional(),
+});
+
+export const memberStatsQuerySchema = z.object({
+  scope: memberScopeSchema,
 });
 
 export const patchMemberSchema = z.object({

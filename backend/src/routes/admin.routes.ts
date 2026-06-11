@@ -6,6 +6,7 @@ import { requireExecutive, requireSuperAdmin } from '../middleware/role-guard.js
 import {
   assignExecutiveSchema,
   membersQuerySchema,
+  memberStatsQuerySchema,
   patchMemberSchema,
   updateSettingsSchema,
   userLookupQuerySchema,
@@ -17,6 +18,11 @@ const router = Router();
 router.use(authMiddleware, requireExecutive);
 
 router.get('/members', validate(membersQuerySchema, 'query'), catchAsync(adminController.listMembers));
+router.get(
+  '/members/stats',
+  validate(memberStatsQuerySchema, 'query'),
+  catchAsync(adminController.getMemberStats),
+);
 router.get('/users/lookup', validate(userLookupQuerySchema, 'query'), catchAsync(adminController.lookupUsers));
 router.get('/members/:id', catchAsync(adminController.getMember));
 router.patch('/members/:id', validate(patchMemberSchema), catchAsync(adminController.patchMember));

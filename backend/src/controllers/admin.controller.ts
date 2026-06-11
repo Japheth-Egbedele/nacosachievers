@@ -13,6 +13,12 @@ export async function listMembers(req: Request, res: Response): Promise<void> {
   sendPaginated(res, items, meta);
 }
 
+export async function getMemberStats(req: Request, res: Response): Promise<void> {
+  const query = req.query as { scope?: string };
+  const data = await adminService.getMemberStats(query.scope);
+  sendSuccess(res, data);
+}
+
 export async function getMember(req: Request, res: Response): Promise<void> {
   const data = await adminService.getMemberDetail(req.params.id!);
   sendSuccess(res, data);

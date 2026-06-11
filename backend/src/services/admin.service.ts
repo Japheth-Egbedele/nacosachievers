@@ -4,6 +4,13 @@ import { getSupabase } from '../config/supabase.js';
 import type { AcademicStatus, UserLevel, UserRole } from '../constants/enums.js';
 import { NotFoundError } from '../utils/errors.js';
 import { parsePagination, buildMeta } from '../utils/pagination.js';
+import {
+  applyMemberScope,
+  emptyLevelCounts,
+  MEMBER_LEVEL_BUCKETS,
+  normalizeMemberScope,
+  type MemberScope,
+} from '../utils/member-scope.js';
 import * as settingsService from './settings.service.js';
 
 const MEMBER_COLUMNS =
@@ -16,13 +23,16 @@ export async function listMembers(query: {
   page?: unknown;
   limit?: unknown;
   search?: string;
+  scope?: MemberScope | string;
   role?: UserRole;
   level?: UserLevel;
   status?: AcademicStatus;
   is_active?: boolean;
 }) {
   const { page, limit, offset } = parsePagination(query);
+  const scope = normalizeMemberScope(query.scope);
   let q = getSupabase().from('users').select(MEMBER_COLUMNS, { count: 'exact' });
+  q = applyMemberScope(q, scope);
 
   if (query.role) q = q.eq('role', query.role);
   if (query.level) q = q.eq('level', query.level);
@@ -40,6 +50,40 @@ export async function listMembers(query: {
     .range(offset, offset + limit - 1);
   if (error) throw error;
   return { items: data ?? [], meta: buildMeta(count ?? 0, page, limit) };
+}
+
+/**
+ * Member counts grouped by level for a given scope.
+ */
+export async function getMemberStats(scopeInput?: MemberScope | string) {
+  const scope = normalizeMemberScope(scopeInput);
+  const sb = getSupabase();
+
+  const countAtLevel = (level?: UserLevel) => {
+    let q = sb.from('users').select('id', { count: 'exact', head: true });
+    q = applyMemberScope(q, scope);
+    if (level) q = q.eq('level', level);
+    return q;
+  };
+
+  const [totalRes, ...levelRes] = await Promise.all([
+    countAtLevel(),
+    ...MEMBER_LEVEL_BUCKETS.map((level) => countAtLevel(level)),
+  ]);
+
+  const by_level = emptyLevelCounts();
+  let levelSum = 0;
+  for (let i = 0; i < MEMBER_LEVEL_BUCKETS.length; i++) {
+    const level = MEMBER_LEVEL_BUCKETS[i]!;
+    const count = levelRes[i]?.count ?? 0;
+    by_level[level] = count;
+    levelSum += count;
+  }
+
+  const total = totalRes.count ?? 0;
+  const unassigned = Math.max(0, total - levelSum);
+
+  return { scope, total, by_level, unassigned };
 }
 
 /**

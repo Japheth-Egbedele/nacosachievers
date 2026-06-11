@@ -237,6 +237,40 @@ After running, redeploy is **not** required — retry opening the election in th
 
 `GET http://localhost:3000/health`
 
+## Admin — members by level
+
+**UI:** Admin → **Members** (level tabs, scope filter, pagination) and Admin **overview** → **Members by level**.
+
+**Scope options:**
+
+| Scope | Includes |
+|-------|----------|
+| `chapter` | `member`, `executive`, `alumni`, `staff` (default) |
+| `registered` | All roles except `guest` (includes `super_admin`) |
+| `all` | Every row in `users` |
+
+**API:**
+
+```bash
+curl "http://localhost:3000/api/v1/admin/members/stats?scope=chapter" \
+  -H "Authorization: Bearer YOUR_EXECUTIVE_TOKEN"
+```
+
+Response: `total`, `by_level` (`100`–`400`, `staff`), optional `unassigned` (null/invalid level).
+
+List members with the same scope (default `chapter` when omitted):
+
+```bash
+curl "http://localhost:3000/api/v1/admin/members?scope=chapter&level=200&page=1&limit=50" \
+  -H "Authorization: Bearer YOUR_EXECUTIVE_TOKEN"
+```
+
+**URL state (Members page):** `?scope=chapter&level=200&page=2&q=search` — shareable links.
+
+**Overview scope** is stored in `localStorage` (`nacos-admin-member-scope`).
+
+**Checks:** Level tab counts match `GET /members/stats`; table `meta.total` matches filtered count; sum of level buckets + unassigned = total.
+
 ## Production troubleshooting
 
 ### CORS: `Access-Control-Allow-Origin` mismatch
