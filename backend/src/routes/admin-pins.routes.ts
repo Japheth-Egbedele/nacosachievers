@@ -4,7 +4,7 @@ import { validate } from '../middleware/validate.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { pinBulkRateLimiter } from '../middleware/rate-limiter.js';
 import { requirePinIssuer } from '../middleware/require-pin-issuer.js';
-import { generatePinBulkSchema } from '../schemas/auth.schema.js';
+import { generatePinBulkSchema, generatePinBulkStaffSchema } from '../schemas/auth.schema.js';
 import * as adminPinsController from '../controllers/admin-pins.controller.js';
 
 const router = Router();
@@ -18,6 +18,12 @@ router.post(
   pinBulkRateLimiter,
   validate(generatePinBulkSchema),
   catchAsync(adminPinsController.generatePinBulk),
+);
+router.post(
+  '/generate-bulk-staff',
+  pinBulkRateLimiter,
+  validate(generatePinBulkStaffSchema),
+  catchAsync(adminPinsController.generatePinBulkStaff),
 );
 
 router.post('/invalidate/:id', catchAsync(adminPinsController.invalidatePin));

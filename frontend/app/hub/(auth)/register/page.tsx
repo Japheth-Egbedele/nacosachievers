@@ -186,8 +186,13 @@ export default function HubRegisterPage() {
           {error && <HubAlert variant="error">{error}</HubAlert>}
 
           {pinPreview && !pinPreview.is_staff && (
-            <HubField label="Level of entry">
-              <HubTextInput readOnly value={levelLabel} className="bg-[var(--color-hub-surface-muted)]" />
+            <HubField label="Level of entry" hint="Set by your admin when the PIN was issued">
+              <HubTextInput
+                readOnly
+                required
+                value={levelLabel}
+                className="bg-[var(--color-hub-surface-muted)]"
+              />
             </HubField>
           )}
 

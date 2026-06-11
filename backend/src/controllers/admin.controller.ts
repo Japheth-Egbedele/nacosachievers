@@ -41,13 +41,12 @@ export async function patchMember(req: Request, res: Response): Promise<void> {
     throw new ForbiddenError('Only super admins can grant PIN issuer access');
   }
 
-  const academicFields =
-    body.level !== undefined ||
+  const restrictedAcademicFields =
     body.year_of_admission !== undefined ||
     body.expected_graduation_year !== undefined ||
     body.actual_graduation_year !== undefined;
-  if (academicFields && req.user!.role !== 'super_admin') {
-    throw new ForbiddenError('Only super admins can edit academic fields');
+  if (restrictedAcademicFields && req.user!.role !== 'super_admin') {
+    throw new ForbiddenError('Only super admins can edit admission and graduation years');
   }
   if (body.admin_scopes !== undefined && req.user!.role !== 'super_admin') {
     throw new ForbiddenError('Only super admins can edit admin scopes');

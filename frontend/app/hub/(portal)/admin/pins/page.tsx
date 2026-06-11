@@ -13,11 +13,14 @@ import { apiFetch, ApiClientError } from '@/lib/api';
 import { getDepartments, type Department } from '@/lib/departments';
 import {
   emptyPinRow,
+  emptyStaffPinRow,
+  parsePastedEmails,
   parsePastedMatrics,
   pinCredentialBlock,
   pinCredentialBlocksAll,
   type IssuedPinResult,
   type PinRowForm,
+  type StaffPinRowForm,
 } from '@/lib/pin-helpers';
 import { useAuth } from '@/lib/auth-context';
 
@@ -34,13 +37,12 @@ export default function AdminPinsPage() {
   const [mode, setMode] = useState<PinMode>('student');
   const [rows, setRows] = useState<PinRowForm[]>([emptyPinRow()]);
   const [pasteText, setPasteText] = useState('');
-  const [staffEmail, setStaffEmail] = useState('');
-  const [staffDepartmentId, setStaffDepartmentId] = useState('');
+  const [staffRows, setStaffRows] = useState<StaffPinRowForm[]>([emptyStaffPinRow()]);
+  const [staffPasteText, setStaffPasteText] = useState('');
   const [departments, setDepartments] = useState<Department[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [issued, setIssued] = useState<IssuedPinResult[]>([]);
-  const [staffIssued, setStaffIssued] = useState<IssuedPinResult | null>(null);
   const [pinExpiryDays, setPinExpiryDays] = useState(14);
 
   const allowed = canIssuePins;
@@ -68,11 +70,16 @@ export default function AdminPinsPage() {
     setError('');
   }
 
+  function resetStaffForm() {
+    setStaffRows([emptyStaffPinRow()]);
+    setStaffPasteText('');
+    setIssued([]);
+    setError('');
+  }
+
   function openModal() {
     resetStudentForm();
-    setStaffEmail('');
-    setStaffDepartmentId('');
-    setStaffIssued(null);
+    resetStaffForm();
     setMode('student');
     setModalOpen(true);
   }
@@ -80,7 +87,7 @@ export default function AdminPinsPage() {
   function closeModal() {
     setModalOpen(false);
     resetStudentForm();
-    setStaffIssued(null);
+    resetStaffForm();
   }
 
   function updateRow(id: string, patch: Partial<PinRowForm>) {
@@ -161,29 +168,65 @@ export default function AdminPinsPage() {
     }
   }
 
+  function updateStaffRow(id: string, patch: Partial<StaffPinRowForm>) {
+    setStaffRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }
+
+  function addStaffRow() {
+    if (staffRows.length >= MAX_ROWS) return;
+    setStaffRows((prev) => [...prev, emptyStaffPinRow()]);
+  }
+
+  function removeStaffRow(id: string) {
+    setStaffRows((prev) => (prev.length <= 1 ? prev : prev.filter((r) => r.id !== id)));
+  }
+
+  function applyPasteEmails() {
+    const emails = parsePastedEmails(staffPasteText, MAX_ROWS);
+    if (emails.length === 0) return;
+    setStaffRows((prev) => {
+      const next: StaffPinRowForm[] = emails.map((email, i) => {
+        const existing = prev[i];
+        return existing ? { ...existing, email } : { ...emptyStaffPinRow(), email };
+      });
+      while (next.length < emails.length && next.length < MAX_ROWS) {
+        next.push(emptyStaffPinRow());
+      }
+      return next.slice(0, MAX_ROWS);
+    });
+  }
+
+  function applyStaffRowOneToAll() {
+    const first = staffRows[0];
+    if (!first) return;
+    setStaffRows((prev) =>
+      prev.map((r, i) => (i === 0 ? r : { ...r, departmentId: first.departmentId })),
+    );
+  }
+
   async function handleGenerateStaff(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setBusy(true);
     try {
-      const data = await apiFetch<IssuedPinResult & { staff_email?: string }>(
-        '/admin/pins/generate',
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            staff_email: staffEmail.trim().toLowerCase(),
-            ...(staffDepartmentId ? { department_id: staffDepartmentId } : {}),
-          }),
-        },
-      );
-      setStaffIssued({
-        id: data.id,
-        pin: data.pin,
-        matric_number: data.staff_email ?? data.matric_number,
+      const pins = staffRows.map((r) => ({
+        staff_email: r.email.trim().toLowerCase(),
+        ...(r.departmentId ? { department_id: r.departmentId } : {}),
+      }));
+
+      const data = await apiFetch<{ items: IssuedPinResult[] }>('/admin/pins/generate-bulk-staff', {
+        method: 'POST',
+        body: JSON.stringify({ pins }),
       });
+      setIssued(
+        data.items.map((item) => ({
+          ...item,
+          matric_number: item.staff_email ?? item.matric_number,
+        })),
+      );
       setStep('results');
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Failed to generate PIN');
+      setError(err instanceof ApiClientError ? err.message : 'Failed to generate staff PINs');
     } finally {
       setBusy(false);
     }
@@ -195,7 +238,7 @@ export default function AdminPinsPage() {
     <div className="mx-auto max-w-2xl">
       <HubPageHeader
         title="Issue onboarding PINs"
-        description="Generate up to 10 student PINs at once, or a single staff PIN (super admin). Share credentials once — they are shown only once."
+        description="Generate up to 10 student or staff PINs at once (staff: super admin only). Share credentials once — they are shown only once."
       />
 
       <div className="hub-card p-6">
@@ -217,7 +260,7 @@ export default function AdminPinsPage() {
           step === 'results'
             ? `Copy each row or copy all. PINs expire in ${pinExpiryDays} days if unused.`
             : mode === 'staff'
-              ? 'Staff work email + optional department.'
+              ? `Add up to ${MAX_ROWS} staff emails. Paste to fill rows quickly.`
               : `Add up to ${MAX_ROWS} students. Paste matrics to fill rows quickly.`
         }
         size="lg"
@@ -235,7 +278,7 @@ export default function AdminPinsPage() {
                 <HubPillTabs
                   tabs={[
                     { key: 'student', label: 'Students (bulk)' },
-                    { key: 'staff', label: 'Staff (single)' },
+                    { key: 'staff', label: 'Staff (bulk)' },
                   ]}
                   active={mode}
                   onChange={(key) => {
@@ -248,32 +291,96 @@ export default function AdminPinsPage() {
             )}
 
             {mode === 'staff' && isSuperAdmin ? (
-              <form onSubmit={handleGenerateStaff} className="space-y-4">
-                <HubField label="Staff email">
-                  <HubTextInput
-                    type="email"
-                    required
-                    value={staffEmail}
-                    onChange={(e) => setStaffEmail(e.target.value)}
-                    placeholder="lecturer@achievers.edu.ng"
-                  />
-                </HubField>
-                <HubField label="Department (optional)">
-                  <select
-                    value={staffDepartmentId}
-                    onChange={(e) => setStaffDepartmentId(e.target.value)}
+              <form onSubmit={handleGenerateStaff} className="space-y-5">
+                <HubField
+                  label="Paste staff emails (optional)"
+                  hint="One per line or comma-separated — fills up to 10 rows"
+                >
+                  <textarea
+                    value={staffPasteText}
+                    onChange={(e) => setStaffPasteText(e.target.value)}
+                    rows={3}
                     className="hub-input w-full rounded-xl px-3.5 py-2.5 text-sm"
+                    placeholder="lecturer@achievers.edu.ng&#10;hod@achievers.edu.ng"
+                  />
+                  <button
+                    type="button"
+                    onClick={applyPasteEmails}
+                    className={`${hubBtnSecondary} mt-2`}
                   >
-                    <option value="">— None —</option>
-                    {departments.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
+                    Apply to rows
+                  </button>
                 </HubField>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={addStaffRow}
+                    disabled={staffRows.length >= MAX_ROWS}
+                    className={hubBtnSecondary}
+                  >
+                    + Add row ({staffRows.length}/{MAX_ROWS})
+                  </button>
+                  <button type="button" onClick={applyStaffRowOneToAll} className={hubBtnSecondary}>
+                    Apply row 1 department to all
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {staffRows.map((row, index) => (
+                    <div
+                      key={row.id}
+                      className="rounded-xl border border-[var(--color-hub-border)] bg-[var(--color-hub-surface-muted)] p-4"
+                    >
+                      <div className="mb-3 flex items-center justify-between">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                          Staff {index + 1}
+                        </span>
+                        {staffRows.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeStaffRow(row.id)}
+                            className="text-xs text-red-600 hover:underline"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <HubField label="Work email">
+                          <HubTextInput
+                            type="email"
+                            required
+                            value={row.email}
+                            onChange={(e) => updateStaffRow(row.id, { email: e.target.value })}
+                            placeholder="lecturer@achievers.edu.ng"
+                          />
+                        </HubField>
+                        <HubField label="Department (optional)">
+                          <select
+                            value={row.departmentId}
+                            onChange={(e) =>
+                              updateStaffRow(row.id, { departmentId: e.target.value })
+                            }
+                            className="hub-input w-full rounded-xl px-3.5 py-2.5 text-sm"
+                          >
+                            <option value="">— None —</option>
+                            {departments.map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.name}
+                              </option>
+                            ))}
+                          </select>
+                        </HubField>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
                 <button type="submit" disabled={busy} className={hubBtnPrimary}>
-                  {busy ? 'Generating…' : 'Generate staff PIN'}
+                  {busy
+                    ? 'Generating…'
+                    : `Generate ${staffRows.length} staff PIN${staffRows.length === 1 ? '' : 's'}`}
                 </button>
               </form>
             ) : (
@@ -392,13 +499,15 @@ export default function AdminPinsPage() {
 
         {step === 'results' && (
           <div className="space-y-4">
-            {(staffIssued ? [staffIssued] : issued).map((item) => (
+            {issued.map((item) => (
               <div
                 key={item.id}
                 className="overflow-hidden rounded-xl border-2 border-[var(--color-brand)]/40"
               >
                 <div className="bg-gradient-to-r from-[#0f172a] to-[#047857] px-4 py-3 text-white">
-                  <p className="font-mono text-sm font-bold">{item.matric_number}</p>
+                  <p className="font-mono text-sm font-bold">
+                    {item.staff_email ?? item.matric_number}
+                  </p>
                   <p className="mt-1 font-mono text-2xl tracking-[0.2em] text-emerald-200">
                     {item.pin}
                   </p>
@@ -425,8 +534,9 @@ export default function AdminPinsPage() {
               <button
                 type="button"
                 onClick={() => {
-                  resetStudentForm();
-                  setStaffIssued(null);
+                  if (mode === 'staff') resetStaffForm();
+                  else resetStudentForm();
+                  setStep('form');
                 }}
                 className={hubBtnPrimary}
               >

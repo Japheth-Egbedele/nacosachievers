@@ -137,6 +137,10 @@ export async function createPin(params: {
     throw new ValidationError('Student PINs cannot use staff level');
   }
 
+  if (!isStaff && !params.levelOfEntry) {
+    throw new ValidationError('Level of entry is required for student PINs');
+  }
+
   const plain = generatePlainPin();
   const pinHash = await hashPin(plain);
   const expiryHours = await settingsService.getPinExpiryHours();

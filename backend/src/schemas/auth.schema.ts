@@ -93,4 +93,30 @@ export const generatePinBulkSchema = z
     }
   });
 
+const generatePinBulkStaffItemSchema = z.object({
+  staff_email: z.string().email(),
+  department_id: z.string().uuid().optional(),
+  admission_type: z.enum(['regular', 'transfer', 'readmission']).optional(),
+});
+
+export const generatePinBulkStaffSchema = z
+  .object({
+    pins: z.array(generatePinBulkStaffItemSchema).min(1).max(10),
+  })
+  .superRefine((data, ctx) => {
+    const normalized = data.pins.map((p) => p.staff_email.trim().toLowerCase());
+    const seen = new Set<string>();
+    for (let i = 0; i < normalized.length; i++) {
+      const email = normalized[i]!;
+      if (seen.has(email)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Duplicate staff email: ${email}`,
+          path: ['pins', i, 'staff_email'],
+        });
+      }
+      seen.add(email);
+    }
+  });
+
 export const validatePinSchema = z.union([validatePinStudentSchema, validatePinStaffSchema]);

@@ -7,6 +7,7 @@ import * as pinService from '../services/pin.service.js';
 import * as settingsService from '../services/settings.service.js';
 import {
   generatePinBulkSchema,
+  generatePinBulkStaffSchema,
   generatePinStaffSchema,
   generatePinStudentSchema,
 } from '../schemas/auth.schema.js';
@@ -143,6 +144,66 @@ export async function generatePinBulk(req: Request, res: Response): Promise<void
     { items },
     HTTP_STATUS.CREATED,
     `${items.length} PIN(s) generated. Share securely.`,
+  );
+}
+
+/**
+ * POST /admin/pins/generate-bulk-staff — up to 10 staff PINs; super admin only; all-or-nothing.
+ */
+export async function generatePinBulkStaff(req: Request, res: Response): Promise<void> {
+  if (req.user!.role !== 'super_admin') {
+    throw new ValidationError('Only super admins can issue staff PINs');
+  }
+
+  const parsed = generatePinBulkStaffSchema.parse(req.body);
+  const createdIds: string[] = [];
+  const items: Array<{
+    id: string;
+    pin: string;
+    staff_email: string;
+    matric_number: string;
+  }> = [];
+
+  try {
+    for (const row of parsed.pins) {
+      const result = await pinService.createPin({
+        staffEmail: row.staff_email,
+        createdBy: req.user!.id,
+        departmentId: row.department_id,
+        levelOfEntry: 'staff',
+        admissionType: row.admission_type,
+        allowStaff: true,
+      });
+      createdIds.push(result.id);
+      items.push({
+        id: result.id,
+        pin: result.pin,
+        staff_email: row.staff_email.trim().toLowerCase(),
+        matric_number: result.matric_number,
+      });
+    }
+  } catch (err) {
+    await pinService.expirePinIds(createdIds);
+    throw err;
+  }
+
+  await auditService.logAudit({
+    actorId: req.user!.id,
+    action: 'pin_generated_bulk',
+    entityType: 'onboarding_pin',
+    metadata: {
+      count: items.length,
+      staff_emails: items.map((i) => i.staff_email),
+      kind: 'staff',
+    },
+    ipAddress: req.ip,
+  });
+
+  sendSuccess(
+    res,
+    { items },
+    HTTP_STATUS.CREATED,
+    `${items.length} staff PIN(s) generated. Share securely.`,
   );
 }
 

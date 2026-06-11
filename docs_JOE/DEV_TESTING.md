@@ -98,7 +98,7 @@ Executives manage **elections** and the rest of admin; they do **not** get PIN a
 Department staff and lecturers register with `role = staff` using a **work email + PIN** (not matric).
 
 1. Run **MANUAL_SETUP §2.19.1** and **§2.6.1** in Supabase if not already applied.
-2. **Super admin only** → **Issue PINs** → **Issue PIN(s)** modal → **Staff (single)** tab → enter **work email** → generate PIN.
+2. **Super admin only** → **Issue PINs** → **Issue PIN(s)** modal → **Staff (bulk)** tab → up to **10 work emails** (paste supported) → generate PINs.
 3. Staff opens `/hub/register` → **Staff** tab → work email + PIN → name, password → verify email → Hub shows **Election results** only (lecturers **cannot vote**).
 4. Staff do **not** see Admin nav unless promoted to executive or granted PIN issuer separately.
 
@@ -107,11 +107,21 @@ Department staff and lecturers register with `role = staff` using a **work email
 ### Staff test account (PIN flow)
 
 ```bash
-curl -X POST http://localhost:3000/api/v1/admin/pins/generate \
+curl -X POST http://localhost:3000/api/v1/admin/pins/generate-bulk-staff \
   -H "Authorization: Bearer YOUR_SUPER_ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"staff_email":"lecturer@achievers.edu.ng","level_of_entry":"staff"}'
+  -d '{"pins":[{"staff_email":"lecturer@achievers.edu.ng"}]}'
 ```
+
+### Student level required
+
+- Every **student** PIN must include `level_of_entry` (`100`–`400`). Registration rejects PINs with no level (`PIN_MISSING_LEVEL`).
+- **Admin → Members** — executives can set a missing level via the Level dropdown (highlighted amber when unset). Super admin can still edit admission/graduation years.
+
+### Fix users missing a level (existing accounts)
+
+1. Admin → **Members** → filter **Unassigned** or find rows with amber **Set level** dropdown.
+2. Pick L100–L400; expected graduation year auto-fills when admission year is on file.
 
 After registration, confirm `users.role = staff`. Lecturers see `/hub/elections` only (results when closed); vault, wallet, and profile are hidden.
 

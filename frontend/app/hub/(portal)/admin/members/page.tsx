@@ -195,6 +195,10 @@ function AdminMembersContent() {
     await patchMember(id, { can_issue_pins: next });
   }
 
+  function canSetLevel(m: Member) {
+    return m.role !== 'staff' && m.role !== 'super_admin' && m.role !== 'guest';
+  }
+
   if (loading && items.length === 0 && !stats) {
     return <SpinnerCenter />;
   }
@@ -203,7 +207,7 @@ function AdminMembersContent() {
     <div>
       <AdminPageHeader
         title="Members"
-        description="Browse by level, filter account scope, search, and manage member status."
+        description="Browse by level, filter account scope, assign missing levels, and manage member status."
       />
       {error && (
         <HubAlert variant="error" className="mb-4">
@@ -269,7 +273,32 @@ function AdminMembersContent() {
                   )}
                 </td>
                 <td className="px-4 py-3 text-[var(--color-hub-text-secondary)]">
-                  {m.level === 'staff' ? 'Staff' : m.level ? `L${m.level}` : '—'}
+                  {canSetLevel(m) ? (
+                    <select
+                      value={m.level && m.level !== 'staff' ? m.level : ''}
+                      disabled={busyId === m.id}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v) void patchMember(m.id, { level: v });
+                      }}
+                      className={`hub-input rounded-lg px-2 py-1 text-sm ${
+                        !m.level ? 'border-amber-400 bg-amber-50' : ''
+                      }`}
+                      aria-label={`Level for ${m.first_name} ${m.last_name}`}
+                    >
+                      <option value="">— Set level —</option>
+                      <option value="100">L100</option>
+                      <option value="200">L200</option>
+                      <option value="300">L300</option>
+                      <option value="400">L400</option>
+                    </select>
+                  ) : m.level === 'staff' ? (
+                    'Staff'
+                  ) : m.level ? (
+                    `L${m.level}`
+                  ) : (
+                    '—'
+                  )}
                 </td>
                 <td className="px-4 py-3 text-[var(--color-hub-text-secondary)]">
                   {m.year_of_admission ?? '—'}

@@ -8,6 +8,8 @@ const PIN_ERROR_MESSAGES: Record<string, string> = {
   INVALID_PIN: 'Incorrect PIN. Double-check the code from your admin.',
   PIN_VALIDATION_LOCKED:
     'Too many incorrect PIN attempts for this ID. Wait 30 minutes or contact your chapter admin.',
+  PIN_MISSING_LEVEL:
+    'This PIN has no level assigned. Ask your chapter admin to re-issue your PIN with a level.',
   RATE_LIMIT:
     'Too many attempts. Wait a few minutes and try again. On shared WiFi, try mobile data.',
 };

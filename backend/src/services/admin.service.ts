@@ -2,7 +2,8 @@ import { getOfficeByKey } from '../constants/executive-offices.js';
 import type { AdminScope } from '../constants/admin-scopes.js';
 import { getSupabase } from '../config/supabase.js';
 import type { AcademicStatus, UserLevel, UserRole } from '../constants/enums.js';
-import { NotFoundError } from '../utils/errors.js';
+import { NotFoundError, ValidationError } from '../utils/errors.js';
+import { expectedGraduationYear, isNumericStudentLevel } from '../utils/academic-level.js';
 import { parsePagination, buildMeta } from '../utils/pagination.js';
 import {
   applyMemberScope,
@@ -120,7 +121,7 @@ export async function patchMember(
 ) {
   const { data: existing } = await getSupabase()
     .from('users')
-    .select('id')
+    .select('id, level_of_entry, year_of_admission, role')
     .eq('id', memberId)
     .maybeSingle();
   if (!existing) throw new NotFoundError('Member not found');
@@ -130,7 +131,26 @@ export async function patchMember(
   if (patch.is_active !== undefined) update.is_active = patch.is_active;
   if (patch.academic_status !== undefined) update.academic_status = patch.academic_status;
   if (patch.can_issue_pins !== undefined) update.can_issue_pins = patch.can_issue_pins;
-  if (patch.level !== undefined) update.level = patch.level;
+  if (patch.level !== undefined) {
+    if (existing.role === 'staff' && patch.level !== 'staff') {
+      throw new ValidationError('Staff accounts must keep level staff');
+    }
+    if (existing.role !== 'staff' && patch.level === 'staff') {
+      throw new ValidationError('Only staff accounts can use level staff');
+    }
+    update.level = patch.level;
+    if (!existing.level_of_entry) {
+      update.level_of_entry = patch.level;
+    }
+    if (
+      isNumericStudentLevel(patch.level) &&
+      existing.year_of_admission != null &&
+      patch.expected_graduation_year === undefined
+    ) {
+      const grad = expectedGraduationYear(patch.level, existing.year_of_admission);
+      if (grad != null) update.expected_graduation_year = grad;
+    }
+  }
   if (patch.year_of_admission !== undefined) update.year_of_admission = patch.year_of_admission;
   if (patch.expected_graduation_year !== undefined) {
     update.expected_graduation_year = patch.expected_graduation_year;

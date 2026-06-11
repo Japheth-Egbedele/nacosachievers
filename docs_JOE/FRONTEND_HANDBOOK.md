@@ -238,8 +238,8 @@ Grouped by portal section — full list in [BUILD_PLAN.md](./BUILD_PLAN.md) Phas
 
 Highlights for FE admin UI:
 
-- **PINs** — `super_admin` or delegated `can_issue_pins` (student PINs via bulk modal / `POST /admin/pins/generate-bulk`; staff single-issue via `POST /admin/pins/generate`)
-- **Members** — role/status; super_admin toggles **Can issue PINs**
+- **PINs** — `super_admin` or delegated `can_issue_pins` (student bulk / `POST /admin/pins/generate-bulk`); staff bulk **`super_admin` only** / `POST /admin/pins/generate-bulk-staff`
+- **Members** — role/status; executives set **level** on members; super_admin toggles **Can issue PINs** and admission years
 - **Audit log** — `GET /admin/audit-logs` (requires MANUAL_SETUP §2.6.1)
 - Analytics, settings (`super_admin` for settings)
 - Vault pending queue, course CRUD, lecturer CRUD, teaching assignments
@@ -252,8 +252,9 @@ Highlights for FE admin UI:
 
 | Method | Path | Access | Notes |
 |--------|------|--------|-------|
-| POST | `/admin/pins/generate-bulk` | `super_admin` or `can_issue_pins` | **Student only.** Body: `{ pins: [...] }` — 1–10 items; unique `matric_number`; each needs `department_id`, `level_of_entry`; optional `year_of_admission`, `admission_type`. All-or-nothing on error. Rate limit 20/hr. Audit: `pin_generated_bulk`. |
-| POST | `/admin/pins/generate` | `super_admin` or `can_issue_pins` | Single student **or** staff (`staff_email` — **super_admin only** for staff). Kept for staff tab and backward compatibility. |
+| POST | `/admin/pins/generate-bulk` | `super_admin` or `can_issue_pins` | **Student only.** Body: `{ pins: [...] }` — 1–10 items; unique `matric_number`; each needs `department_id`, `level_of_entry` (required); optional `year_of_admission`, `admission_type`. All-or-nothing on error. Rate limit 20/hr. Audit: `pin_generated_bulk`. |
+| POST | `/admin/pins/generate-bulk-staff` | `super_admin` only | Body: `{ pins: [...] }` — 1–10 unique `staff_email`; optional `department_id`. All-or-nothing. Rate limit 20/hr. Audit: `pin_generated_bulk` (`kind: staff`). |
+| POST | `/admin/pins/generate` | `super_admin` or `can_issue_pins` | Single student **or** staff (`staff_email` — **super_admin only** for staff). Kept for backward compatibility. |
 
 ### Elections (member + public)
 

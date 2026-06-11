@@ -62,6 +62,12 @@ export async function validatePinAndIssueToken(
     });
 
     const isStaff = row.level_of_entry === 'staff' || Boolean(row.staff_email);
+    if (!isStaff && !row.level_of_entry) {
+      throw new ValidationError(
+        'This onboarding PIN has no level assigned. Contact an admin to re-issue your PIN.',
+        'PIN_MISSING_LEVEL',
+      );
+    }
     return {
       onboardingToken: tokenService.signOnboardingToken(row.id),
       pin_preview: {
@@ -102,6 +108,13 @@ export async function registerUser(input: {
 
   const emailLower = input.email.toLowerCase();
   const isStaff = activePin.level_of_entry === 'staff' || Boolean(activePin.staff_email);
+
+  if (!isStaff && !activePin.level_of_entry) {
+    throw new ValidationError(
+      'This onboarding PIN has no level assigned. Contact an admin to re-issue your PIN.',
+      'PIN_MISSING_LEVEL',
+    );
+  }
 
   if (isStaff && activePin.staff_email && emailLower !== activePin.staff_email) {
     throw new ValidationError(
