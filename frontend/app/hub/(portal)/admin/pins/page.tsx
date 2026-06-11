@@ -41,6 +41,7 @@ export default function AdminPinsPage() {
   const [busy, setBusy] = useState(false);
   const [issued, setIssued] = useState<IssuedPinResult[]>([]);
   const [staffIssued, setStaffIssued] = useState<IssuedPinResult | null>(null);
+  const [pinExpiryDays, setPinExpiryDays] = useState(14);
 
   const allowed = canIssuePins;
 
@@ -51,6 +52,13 @@ export default function AdminPinsPage() {
   useEffect(() => {
     void getDepartments().then(setDepartments).catch(() => setDepartments([]));
   }, []);
+
+  useEffect(() => {
+    if (!allowed) return;
+    void apiFetch<{ pin_expiry_days: number }>('/admin/pins/config')
+      .then((c) => setPinExpiryDays(c.pin_expiry_days))
+      .catch(() => setPinExpiryDays(14));
+  }, [allowed]);
 
   function resetStudentForm() {
     setRows([emptyPinRow()]);
@@ -193,7 +201,8 @@ export default function AdminPinsPage() {
       <div className="hub-card p-6">
         <p className="text-sm text-[var(--color-hub-text-secondary)]">
           Use the batch issuer for NACOS reps onboarding many students. Each row can have its own
-          matric, department, level, and optional admission year.
+          matric, department, level, and optional admission year. Unused PINs expire after{' '}
+          <strong>{pinExpiryDays} days</strong> (super admin can change this in Admin → Settings).
         </p>
         <button type="button" onClick={openModal} className={`${hubBtnPrimary} mt-4 w-auto px-6`}>
           Issue PIN(s)
@@ -206,7 +215,7 @@ export default function AdminPinsPage() {
         title={step === 'results' ? 'PIN credentials' : 'Issue onboarding PIN(s)'}
         description={
           step === 'results'
-            ? 'Copy each row or copy all. PINs expire in 72 hours if unused.'
+            ? `Copy each row or copy all. PINs expire in ${pinExpiryDays} days if unused.`
             : mode === 'staff'
               ? 'Staff work email + optional department.'
               : `Add up to ${MAX_ROWS} students. Paste matrics to fill rows quickly.`

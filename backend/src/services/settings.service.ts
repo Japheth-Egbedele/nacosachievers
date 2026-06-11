@@ -1,4 +1,10 @@
 import { getSupabase } from '../config/supabase.js';
+import {
+  DEFAULT_PIN_EXPIRY_HOURS,
+  MAX_PIN_EXPIRY_HOURS,
+  MIN_PIN_EXPIRY_HOURS,
+} from '../constants/auth.js';
+import { ValidationError } from '../utils/errors.js';
 
 /**
  * Reads a site setting value as number.
@@ -14,6 +20,12 @@ export async function getSettingNumber(key: string, defaultValue = 0): Promise<n
   if (!data?.value) return defaultValue;
   const n = Number(data.value);
   return Number.isFinite(n) ? n : defaultValue;
+}
+
+/** Onboarding PIN validity in hours (site_settings `pin_expiry_hours`, default 14 days). */
+export async function getPinExpiryHours(): Promise<number> {
+  const hours = await getSettingNumber('pin_expiry_hours', DEFAULT_PIN_EXPIRY_HOURS);
+  return Math.min(MAX_PIN_EXPIRY_HOURS, Math.max(MIN_PIN_EXPIRY_HOURS, hours));
 }
 
 /**
@@ -36,6 +48,14 @@ export async function updateSettings(
   updatedBy: string,
 ): Promise<Record<string, unknown>> {
   for (const [key, value] of Object.entries(updates)) {
+    if (key === 'pin_expiry_hours') {
+      const hours = Number(value);
+      if (!Number.isFinite(hours) || hours < MIN_PIN_EXPIRY_HOURS || hours > MAX_PIN_EXPIRY_HOURS) {
+        throw new ValidationError(
+          `pin_expiry_hours must be between ${MIN_PIN_EXPIRY_HOURS} and ${MAX_PIN_EXPIRY_HOURS}`,
+        );
+      }
+    }
     await getSupabase()
       .from('site_settings')
       .upsert(

@@ -4,6 +4,7 @@ import { ValidationError } from '../utils/errors.js';
 import { sendSuccess } from '../utils/response.js';
 import * as auditService from '../services/audit.service.js';
 import * as pinService from '../services/pin.service.js';
+import * as settingsService from '../services/settings.service.js';
 import {
   generatePinBulkSchema,
   generatePinStaffSchema,
@@ -143,6 +144,14 @@ export async function generatePinBulk(req: Request, res: Response): Promise<void
     HTTP_STATUS.CREATED,
     `${items.length} PIN(s) generated. Share securely.`,
   );
+}
+
+/**
+ * GET /admin/pins/config — PIN issuance settings for issuers.
+ */
+export async function getPinConfig(_req: Request, res: Response): Promise<void> {
+  const pin_expiry_hours = await settingsService.getPinExpiryHours();
+  sendSuccess(res, { pin_expiry_hours, pin_expiry_days: Math.round(pin_expiry_hours / 24) });
 }
 
 /**

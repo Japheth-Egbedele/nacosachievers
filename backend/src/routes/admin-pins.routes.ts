@@ -11,6 +11,7 @@ const router = Router();
 
 router.use(authMiddleware, catchAsync(requirePinIssuer));
 
+router.get('/config', catchAsync(adminPinsController.getPinConfig));
 router.post('/generate', catchAsync(adminPinsController.generatePin));
 router.post(
   '/generate-bulk',

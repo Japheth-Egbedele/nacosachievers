@@ -1,10 +1,11 @@
 import bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
-import { BCRYPT_ROUNDS, PIN_EXPIRY_HOURS } from '../constants/auth.js';
+import { BCRYPT_ROUNDS } from '../constants/auth.js';
 import { ERROR_MESSAGES } from '../constants/messages.js';
 import { getSupabase } from '../config/supabase.js';
 import { ForbiddenError, ValidationError } from '../utils/errors.js';
 import { addHours } from 'date-fns';
+import * as settingsService from './settings.service.js';
 
 const PIN_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -138,7 +139,8 @@ export async function createPin(params: {
 
   const plain = generatePlainPin();
   const pinHash = await hashPin(plain);
-  const expiresAt = addHours(new Date(), PIN_EXPIRY_HOURS).toISOString();
+  const expiryHours = await settingsService.getPinExpiryHours();
+  const expiresAt = addHours(new Date(), expiryHours).toISOString();
 
   const staffEmail = isStaff ? params.staffEmail!.trim().toLowerCase() : null;
   const matricNumber = isStaff

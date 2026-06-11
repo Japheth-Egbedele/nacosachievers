@@ -3,14 +3,22 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
+import HubField, { HubTextInput } from '@/app/hub/components/ui/HubField';
+import { hubBtnPrimary, hubBtnSecondary } from '@/lib/hub-styles';
 import { apiFetch, ApiClientError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+
+const DEFAULT_PIN_EXPIRY_DAYS = 14;
+const MIN_PIN_DAYS = 1;
+const MAX_PIN_DAYS = 30;
 
 export default function AdminSettingsPage() {
   const { isSuperAdmin, loading } = useAuth();
   const router = useRouter();
   const [settings, setSettings] = useState<Record<string, unknown>>({});
   const [jsonText, setJsonText] = useState('');
+  const [pinExpiryDays, setPinExpiryDays] = useState(String(DEFAULT_PIN_EXPIRY_DAYS));
+  const [pinSaved, setPinSaved] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [promotePreview, setPromotePreview] = useState<{ promote: unknown[]; skip: unknown[] } | null>(
@@ -33,10 +41,37 @@ export default function AdminSettingsPage() {
         .then((s) => {
           setSettings(s);
           setJsonText(JSON.stringify(s, null, 2));
+          const hours = Number(s.pin_expiry_hours);
+          if (Number.isFinite(hours) && hours > 0) {
+            setPinExpiryDays(String(Math.round(hours / 24)));
+          }
         })
         .catch(() => setSettings({}));
     }
   }, [isSuperAdmin]);
+
+  async function savePinExpiry(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setPinSaved(false);
+    const days = parseInt(pinExpiryDays, 10);
+    if (!Number.isFinite(days) || days < MIN_PIN_DAYS || days > MAX_PIN_DAYS) {
+      setError(`PIN validity must be between ${MIN_PIN_DAYS} and ${MAX_PIN_DAYS} days.`);
+      return;
+    }
+    try {
+      const hours = days * 24;
+      const updated = await apiFetch<Record<string, unknown>>('/admin/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ pin_expiry_hours: hours }),
+      });
+      setSettings(updated);
+      setJsonText(JSON.stringify(updated, null, 2));
+      setPinSaved(true);
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Could not save PIN setting');
+    }
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -50,6 +85,10 @@ export default function AdminSettingsPage() {
       });
       setSettings(parsed);
       setSaved(true);
+      const hours = Number(parsed.pin_expiry_hours);
+      if (Number.isFinite(hours) && hours > 0) {
+        setPinExpiryDays(String(Math.round(hours / 24)));
+      }
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Invalid JSON or save failed');
     }
@@ -61,19 +100,50 @@ export default function AdminSettingsPage() {
     <div>
       <AdminPageHeader
         title="Site settings"
-        description="Key-value site settings (wallet rewards, career bounty, etc.). Super admin only."
+        description="Configure onboarding PIN lifetime, wallet rewards, and other platform values. Super admin only."
       />
       {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-      {saved && <p className="mb-4 text-sm text-emerald-600">Saved.</p>}
+      {saved && <p className="mb-4 text-sm text-emerald-600">Advanced settings saved.</p>}
+      {pinSaved && <p className="mb-4 text-sm text-emerald-600">PIN validity updated.</p>}
+
+      <section className="hub-card mb-8 p-6">
+        <h2 className="text-lg font-semibold text-[var(--color-hub-text)]">Onboarding PINs</h2>
+        <p className="mt-1 text-sm text-[var(--color-hub-text-secondary)]">
+          How long issued PINs stay valid before expiring (if unused). Applies to{' '}
+          <strong>newly issued</strong> PINs only. Default is 14 days.
+        </p>
+        <form onSubmit={savePinExpiry} className="mt-4 flex flex-wrap items-end gap-4">
+          <HubField label="PIN valid for (days)">
+            <HubTextInput
+              type="number"
+              min={MIN_PIN_DAYS}
+              max={MAX_PIN_DAYS}
+              required
+              value={pinExpiryDays}
+              onChange={(e) => setPinExpiryDays(e.target.value)}
+            />
+          </HubField>
+          <button type="submit" className={`${hubBtnPrimary} w-auto px-6`}>
+            Save PIN validity
+          </button>
+        </form>
+        <p className="mt-3 text-xs text-zinc-500">
+          To extend PINs already issued, run the SQL in MANUAL_SETUP §2.6.4 in Supabase.
+        </p>
+      </section>
+
+      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+        Advanced (JSON)
+      </h2>
       <form onSubmit={save}>
         <textarea
           value={jsonText}
           onChange={(e) => setJsonText(e.target.value)}
           rows={16}
-          className="w-full font-mono text-xs rounded-xl border p-3 dark:border-zinc-700 dark:bg-zinc-900"
+          className="w-full rounded-xl border p-3 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900"
         />
-        <button type="submit" className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-sm text-white">
-          Save settings
+        <button type="submit" className={`${hubBtnSecondary} mt-4`}>
+          Save all settings (JSON)
         </button>
       </form>
       <p className="mt-4 text-xs text-zinc-500">
@@ -91,7 +161,7 @@ export default function AdminSettingsPage() {
         <div className="mt-4 flex flex-wrap gap-3">
           <button
             type="button"
-            className="hub-btn-secondary px-4 py-2 text-sm"
+            className={`${hubBtnSecondary} px-4 py-2 text-sm`}
             onClick={() =>
               void apiFetch<{ promote: unknown[]; skip: unknown[] }>('/admin/session/promote/preview')
                 .then(setPromotePreview)
@@ -102,7 +172,7 @@ export default function AdminSettingsPage() {
           </button>
           <button
             type="button"
-            className="hub-btn-primary px-4 py-2 text-sm"
+            className={`${hubBtnPrimary} px-4 py-2 text-sm`}
             onClick={() =>
               void apiFetch<{ updated: number }>('/admin/session/promote', { method: 'POST' }).then(
                 (r) => {
@@ -116,7 +186,7 @@ export default function AdminSettingsPage() {
           </button>
           <button
             type="button"
-            className="hub-btn-secondary px-4 py-2 text-sm"
+            className={`${hubBtnSecondary} px-4 py-2 text-sm`}
             onClick={() =>
               void apiFetch<{ year: number; graduate: unknown[]; skip: unknown[] }>(
                 '/admin/session/graduate/preview',

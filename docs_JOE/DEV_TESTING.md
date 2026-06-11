@@ -14,7 +14,7 @@ Set `NEXT_PUBLIC_API_URL=http://localhost:3000` in `frontend/.env.local`.
 
 ## Database
 
-1. Run all SQL in [MANUAL_SETUP.md](./MANUAL_SETUP.md) including **§2.6.1**, **§2.6.2**, **§2.6.3** (PIN lockouts), **§2.19.1** (staff role), and **§2.22 Elections**.
+1. Run all SQL in [MANUAL_SETUP.md](./MANUAL_SETUP.md) including **§2.6.1**, **§2.6.2**, **§2.6.3** (PIN lockouts), **§2.6.4** (PIN expiry setting), **§2.19.1** (staff role), and **§2.22 Elections**.
 2. Seed super admin (§2.19).
 
 ## How hub onboarding works
@@ -77,6 +77,13 @@ delete from pin_validation_lockouts where identifier = 'AU23AY4578';
 **Requires:** MANUAL_SETUP **§2.6.3** (`pin_validation_lockouts` table).
 
 **Mitigation during launch:** Stagger signups; if one building/WiFi is blocked, use mobile data temporarily.
+
+### PIN expiry (default 14 days)
+
+- New PINs use `site_settings.pin_expiry_hours` (default **336** = 14 days).
+- Super admin: **Admin → Settings → Onboarding PINs** to change validity (1–30 days).
+- **Issue PINs** page shows the current window; `GET /admin/pins/config` returns it for issuers.
+- Already-issued unused PINs: extend via SQL in MANUAL_SETUP **§2.6.4** (settings change does not retroactively extend old PINs).
 
 ### Delegated PIN issuers
 

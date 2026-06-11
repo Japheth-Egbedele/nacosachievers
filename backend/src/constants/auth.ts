@@ -3,7 +3,10 @@ export const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 export const ONBOARDING_TOKEN_EXPIRY = '30m';
 export const EMAIL_VERIFY_EXPIRY_HOURS = 24;
 export const PASSWORD_RESET_EXPIRY_HOURS = 1;
-export const PIN_EXPIRY_HOURS = 72;
+/** Default onboarding PIN lifetime when site_settings has no override (14 days). */
+export const DEFAULT_PIN_EXPIRY_HOURS = 336;
+export const MIN_PIN_EXPIRY_HOURS = 24;
+export const MAX_PIN_EXPIRY_HOURS = 720;
 export const BCRYPT_ROUNDS = 12;
 
 /** Failed wrong-PIN attempts before temporary lockout (per matric / staff email). */

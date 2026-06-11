@@ -541,6 +541,7 @@ insert into site_settings (key, value) values
   ('max_transfer_amount', '500'),
   ('transfer_cooldown_minutes', '5'),
   ('career_submission_bounty_credits', '0'),
+  ('pin_expiry_hours', '336'),
   ('current_department_name', '"Computer Science"'),
   ('current_department_code', '"CS"'),
   ('whatsapp_community_link', '""'),
@@ -566,6 +567,8 @@ create table newsletter_subscribers (
 ```
 
 **Career board (Phase 13):** `career_submission_bounty_credits` defaults to **0** so no payout runs until an admin sets a positive integer via site settings.
+
+**Onboarding PINs:** `pin_expiry_hours` defaults to **336** (14 days). Super admin adjusts in Hub → Admin → Settings.
 
 ### 2.20 — Yearbook
 
@@ -888,6 +891,25 @@ create index if not exists idx_pin_lockouts_locked
 ```
 
 Tracks failed PIN attempts per matric or staff email. After 10 wrong PINs within an hour, validation locks for 30 minutes. Cleared automatically on successful PIN validation or when the lock expires.
+
+### 2.6.4 — Onboarding PIN expiry (site settings)
+
+Default **14 days** (`pin_expiry_hours = 336`). Super admin changes this in **Hub → Admin → Settings → Onboarding PINs** (no Render env needed).
+
+If `site_settings` was seeded before this key existed:
+
+```sql
+insert into site_settings (key, value) values ('pin_expiry_hours', '336')
+on conflict (key) do nothing;
+```
+
+To extend **already issued** unused PINs (e.g. slow cohort):
+
+```sql
+update onboarding_pins
+set expires_at = now() + interval '14 days'
+where is_used = false and expires_at > now();
+```
 
 **Session tools (super admin):** Hub → Admin → Settings → **Promote session** / **Graduate cohort** (or `POST /api/v1/admin/session/promote` after preview).
 
