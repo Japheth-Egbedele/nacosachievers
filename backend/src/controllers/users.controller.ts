@@ -117,5 +117,10 @@ export async function lookupUsers(req: Request, res: Response): Promise<void> {
   const search = String(req.query.search ?? '');
   const limit = req.query.limit ? Number(req.query.limit) : 20;
   const data = await sessionPromotionService.lookupUsers(search, limit);
-  sendSuccess(res, data);
+  const role = req.user!.role;
+  const isAdmin = role === 'super_admin' || role === 'executive';
+  const sanitized = isAdmin
+    ? data
+    : data.map(({ email: _email, ...rest }) => rest);
+  sendSuccess(res, sanitized);
 }

@@ -5,7 +5,7 @@ import { ForbiddenError } from '../utils/errors.js';
 
 /**
  * Restricts admin routes to super_admin or executives with the required scope.
- * Legacy executives (empty admin_scopes) retain full access until scopes are assigned.
+ * Empty admin_scopes is denied — run POST /admin/executives/sync-scopes after deploy.
  */
 export function requireAdminScope(...scopes: AdminScope[]) {
   return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
@@ -35,7 +35,11 @@ export function requireAdminScope(...scopes: AdminScope[]) {
 
     const userScopes = (data?.admin_scopes as string[] | null) ?? [];
     if (userScopes.length === 0) {
-      next();
+      next(
+        new ForbiddenError(
+          'Your executive account has no admin permissions assigned. Contact a super admin to sync scopes from your office.',
+        ),
+      );
       return;
     }
 

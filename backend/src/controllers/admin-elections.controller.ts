@@ -95,6 +95,9 @@ export async function stats(_req: Request, res: Response): Promise<void> {
 }
 
 export async function results(req: Request, res: Response): Promise<void> {
-  const data = await electionService.getElectionResults(req.params.id!);
+  const acknowledge = req.query.acknowledge_live_results === 'true';
+  const data = await electionService.getElectionResults(req.params.id!, {
+    allowLive: acknowledge,
+  });
   sendSuccess(res, data);
 }

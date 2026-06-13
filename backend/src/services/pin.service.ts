@@ -232,6 +232,52 @@ export async function expirePinIds(pinIds: string[]): Promise<void> {
     .in('id', pinIds);
 }
 
+export interface PinListRow {
+  id: string;
+  matric_number: string;
+  staff_email: string | null;
+  department_id: string | null;
+  created_by: string | null;
+  expires_at: string;
+  is_used: boolean;
+  used_at: string | null;
+  level_of_entry: string | null;
+  year_of_admission: number | null;
+  admission_type: string;
+  created_at: string;
+  is_expired: boolean;
+  is_active: boolean;
+}
+
+/** Lists recent PINs for the issuer (super admin sees all). */
+export async function listPinsForActor(
+  actorId: string,
+  isSuperAdmin: boolean,
+  limit = 50,
+): Promise<PinListRow[]> {
+  let query = getSupabase()
+    .from('onboarding_pins')
+    .select(
+      'id, matric_number, staff_email, department_id, created_by, expires_at, is_used, used_at, level_of_entry, year_of_admission, admission_type, created_at',
+    )
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (!isSuperAdmin) {
+    query = query.eq('created_by', actorId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const now = Date.now();
+  return (data ?? []).map((row) => ({
+    ...(row as Omit<PinListRow, 'is_expired' | 'is_active'>),
+    is_expired: !row.is_used && new Date(row.expires_at as string).getTime() <= now,
+    is_active: !row.is_used && new Date(row.expires_at as string).getTime() > now,
+  }));
+}
+
 /** @deprecated Use validatePinByMatric */
 export async function validatePin(matricNumber: string, pin: string): Promise<OnboardingPinRow> {
   return validatePinByMatric(matricNumber, pin);

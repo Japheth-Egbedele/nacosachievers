@@ -19,8 +19,10 @@ export async function getElection(req: Request, res: Response): Promise<void> {
 }
 
 export async function castVote(req: Request, res: Response): Promise<void> {
-  const { candidate_ids } = req.body as { candidate_ids: string[] };
-  const data = await electionService.castVote(req.params.id!, req.user!.id, candidate_ids);
+  const { selections } = req.body as {
+    selections: electionService.VoteSelection[];
+  };
+  const data = await electionService.castVote(req.params.id!, req.user!.id, selections);
   sendSuccess(res, data, 200, 'Ballot submitted and locked');
 }
 

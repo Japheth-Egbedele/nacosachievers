@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { catchAsync } from '../utils/catch-async.js';
 import { validate } from '../middleware/validate.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
+import { requireActiveUser } from '../middleware/require-active-user.js';
+import { requireMemberPortal } from '../middleware/require-member-portal.js';
 import { imageUpload } from '../middleware/upload.middleware.js';
 import { uploadRateLimiter } from '../middleware/rate-limiter.js';
 import {
@@ -24,50 +26,53 @@ const patchYearbookSchema = z.object({
 
 const router = Router();
 
-router.get('/alumni', authMiddleware, validate(alumniQuerySchema, 'query'), catchAsync(usersController.listAlumni));
-router.get('/leaderboard', authMiddleware, catchAsync(usersController.leaderboard));
+const memberGuard = [authMiddleware, catchAsync(requireActiveUser), requireMemberPortal];
+
+router.get('/alumni', ...memberGuard, validate(alumniQuerySchema, 'query'), catchAsync(usersController.listAlumni));
+router.get('/leaderboard', ...memberGuard, catchAsync(usersController.leaderboard));
 router.get(
   '/lookup',
   authMiddleware,
+  catchAsync(requireActiveUser),
   validate(userLookupQuerySchema, 'query'),
   catchAsync(usersController.lookupUsers),
 );
 
-router.get('/me', authMiddleware, catchAsync(usersController.getMe));
-router.patch('/me', authMiddleware, validate(updateMeSchema), catchAsync(usersController.updateMe));
+router.get('/me', ...memberGuard, catchAsync(usersController.getMe));
+router.patch('/me', ...memberGuard, validate(updateMeSchema), catchAsync(usersController.updateMe));
 router.patch(
   '/me/password',
-  authMiddleware,
+  ...memberGuard,
   validate(changePasswordSchema),
   catchAsync(usersController.changePassword),
 );
 router.delete(
   '/me',
-  authMiddleware,
+  ...memberGuard,
   validate(deleteMeSchema),
   catchAsync(usersController.deleteMe),
 );
 
 router.post(
   '/me/photo',
-  authMiddleware,
+  ...memberGuard,
   uploadRateLimiter,
   imageUpload.single('photo'),
   catchAsync(usersController.uploadPhoto),
 );
-router.delete('/me/photo', authMiddleware, catchAsync(usersController.deletePhoto));
+router.delete('/me/photo', ...memberGuard, catchAsync(usersController.deletePhoto));
 
-router.get('/me/yearbook', authMiddleware, catchAsync(userYearbookController.getMyYearbook));
+router.get('/me/yearbook', ...memberGuard, catchAsync(userYearbookController.getMyYearbook));
 router.post(
   '/me/yearbook/portrait',
-  authMiddleware,
+  ...memberGuard,
   uploadRateLimiter,
   imageUpload.single('portrait'),
   catchAsync(userYearbookController.uploadPortrait),
 );
 router.patch(
   '/me/yearbook',
-  authMiddleware,
+  ...memberGuard,
   validate(patchYearbookSchema),
   catchAsync(userYearbookController.patchMyYearbook),
 );

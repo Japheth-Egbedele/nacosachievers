@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { catchAsync } from '../utils/catch-async.js';
 import { validate } from '../middleware/validate.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
+import { requireActiveUser } from '../middleware/require-active-user.js';
+import { requireMemberPortal } from '../middleware/require-member-portal.js';
 import { blogQuerySchema } from '../schemas/cms.schema.js';
 import * as messagesController from '../controllers/messages.controller.js';
 
@@ -16,7 +18,7 @@ const sendMessageSchema = z.object({
 
 const router = Router();
 
-router.use(authMiddleware);
+router.use(authMiddleware, catchAsync(requireActiveUser), requireMemberPortal);
 
 router.get('/conversations', catchAsync(messagesController.listConversations));
 router.post(

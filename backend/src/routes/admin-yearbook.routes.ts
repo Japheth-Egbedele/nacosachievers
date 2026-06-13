@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { catchAsync } from '../utils/catch-async.js';
 import { validate } from '../middleware/validate.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
+import { requireActiveUser } from '../middleware/require-active-user.js';
+import { requireAdminScope } from '../middleware/require-admin-scope.js';
 import { requireExecutive } from '../middleware/role-guard.js';
 import { YB_EDITION_STATUSES } from '../constants/enums.js';
 import * as adminYearbookController from '../controllers/admin-yearbook.controller.js';
@@ -33,7 +35,12 @@ const patchSlotSchema = z.object({
 
 const router = Router();
 
-router.use(authMiddleware, requireExecutive);
+router.use(
+  authMiddleware,
+  catchAsync(requireActiveUser),
+  requireExecutive,
+  requireAdminScope('yearbook'),
+);
 
 router.get('/editions', catchAsync(adminYearbookController.listEditions));
 router.post(

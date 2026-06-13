@@ -23,17 +23,19 @@ interface ElectionDetail {
   };
   positions: ElectionPosition[];
   contestable_positions: number;
-  user_vote: string[] | null;
+  user_vote: { candidate_ids: string[]; abstained_position_ids: string[] } | null;
   ballot_locked: boolean;
   can_vote: boolean;
   results?: ElectionResultsPayload;
 }
 
+type PositionPick = { kind: 'candidate'; id: string } | { kind: 'abstain' };
+
 export default function ElectionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { isSuperAdmin, isStaff } = useAuth();
   const [data, setData] = useState<ElectionDetail | null>(null);
-  const [selected, setSelected] = useState<Record<string, string>>({});
+  const [selected, setSelected] = useState<Record<string, PositionPick>>({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -43,11 +45,15 @@ export default function ElectionDetailPage() {
     apiFetch<ElectionDetail>(`/elections/${id}`)
       .then((d) => {
         setData(d);
-        if (d.user_vote?.length) {
-          const map: Record<string, string> = {};
+        if (d.user_vote) {
+          const map: Record<string, PositionPick> = {};
           for (const pos of d.positions) {
-            const pick = pos.candidates.find((c) => d.user_vote!.includes(c.id));
-            if (pick) map[pos.id] = pick.id;
+            if (d.user_vote.abstained_position_ids.includes(pos.id)) {
+              map[pos.id] = { kind: 'abstain' };
+              continue;
+            }
+            const pick = pos.candidates.find((c) => d.user_vote!.candidate_ids.includes(c.id));
+            if (pick) map[pos.id] = { kind: 'candidate', id: pick.id };
           }
           setSelected(map);
         }
@@ -72,7 +78,7 @@ export default function ElectionDetailPage() {
   );
 
   const selectedCount = useMemo(() => {
-    return contestable.filter((p) => selected[p.id]).length;
+    return contestable.filter((p) => selected[p.id] !== undefined).length;
   }, [contestable, selected]);
 
   const requiredCount = data?.election.require_all_positions
@@ -108,19 +114,36 @@ export default function ElectionDetailPage() {
     data.can_vote !== false && !isSuperAdmin && election.status === 'active' && !ballot_locked;
   const showResults = election.status === 'completed';
 
-  function toggleSelect(positionId: string, candidateId: string) {
-    setSelected((prev) => ({ ...prev, [positionId]: candidateId }));
+  function pickCandidate(positionId: string, candidateId: string) {
+    setSelected((prev) => ({ ...prev, [positionId]: { kind: 'candidate', id: candidateId } }));
+  }
+
+  function pickAbstain(positionId: string) {
+    setSelected((prev) => ({ ...prev, [positionId]: { kind: 'abstain' } }));
   }
 
   async function submitVote() {
-    const candidateIds = Object.values(selected);
+    const selections = contestable.map((pos) => {
+      const pick = selected[pos.id];
+      if (!pick) {
+        throw new Error('Incomplete ballot');
+      }
+      if (pick.kind === 'abstain') {
+        return { position_id: pos.id, choice: 'abstain' as const };
+      }
+      return {
+        position_id: pos.id,
+        choice: 'candidate' as const,
+        candidate_id: pick.id,
+      };
+    });
     setBusy(true);
     setError('');
     setConfirmOpen(false);
     try {
       await apiFetch(`/elections/${id}/vote`, {
         method: 'POST',
-        body: JSON.stringify({ candidate_ids: candidateIds }),
+        body: JSON.stringify({ selections }),
       });
       load();
     } catch (err) {
@@ -170,7 +193,8 @@ export default function ElectionDetailPage() {
       {canVote && (
         <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            Select <strong>one contestant per position</strong>
+            Respond to <strong>every position</strong> — pick a contestant or choose{' '}
+            <strong>None of the above</strong>
             {election.require_all_positions
               ? ` (${requiredCount} positions).`
               : ' (at least one).'}{' '}
@@ -206,8 +230,13 @@ export default function ElectionDetailPage() {
                       <input
                         type="radio"
                         name={`position-${pos.id}`}
-                        checked={selected[pos.id] === c.id}
-                        onChange={() => toggleSelect(pos.id, c.id)}
+                        checked={
+                          (() => {
+                            const pick = selected[pos.id];
+                            return pick?.kind === 'candidate' && pick.id === c.id;
+                          })()
+                        }
+                        onChange={() => pickCandidate(pos.id, c.id)}
                         className="mt-1"
                       />
                       <div>
@@ -219,6 +248,23 @@ export default function ElectionDetailPage() {
                     </label>
                   </li>
                 ))}
+                <li>
+                  <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-dashed border-zinc-300 p-4 transition has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50 dark:border-zinc-600 dark:has-[:checked]:bg-amber-950/20">
+                    <input
+                      type="radio"
+                      name={`position-${pos.id}`}
+                      checked={selected[pos.id]?.kind === 'abstain'}
+                      onChange={() => pickAbstain(pos.id)}
+                      className="mt-1"
+                    />
+                    <div>
+                      <span className="font-medium">None of the above</span>
+                      <p className="mt-1 text-sm text-zinc-500">
+                        Abstain from this position — your ballot still counts.
+                      </p>
+                    </div>
+                  </label>
+                </li>
               </ul>
             </section>
           ))}
@@ -247,8 +293,13 @@ export default function ElectionDetailPage() {
             </p>
             <ul className="mt-4 space-y-2 text-sm">
               {contestable.map((pos) => {
-                const cid = selected[pos.id];
-                const name = pos.candidates.find((c) => c.id === cid)?.name ?? '—';
+                const pick = selected[pos.id];
+                const name =
+                  pick?.kind === 'abstain'
+                    ? 'None of the above'
+                    : pick?.kind === 'candidate'
+                      ? (pos.candidates.find((c) => c.id === pick.id)?.name ?? '—')
+                      : '—';
                 return (
                   <li key={pos.id}>
                     <span className="text-zinc-500">{pos.title}:</span>{' '}

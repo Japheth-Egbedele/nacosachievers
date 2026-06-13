@@ -7,6 +7,7 @@ import * as auditService from '../services/audit.service.js';
 import * as sessionPromotionService from '../services/session-promotion.service.js';
 import { officeDisplayTitle } from '../constants/executive-offices.js';
 import type { AdminScope } from '../constants/admin-scopes.js';
+import type { UserRole } from '../constants/enums.js';
 
 export async function listMembers(req: Request, res: Response): Promise<void> {
   const { items, meta } = await adminService.listMembers(req.query);
@@ -52,20 +53,25 @@ export async function patchMember(req: Request, res: Response): Promise<void> {
     throw new ForbiddenError('Only super admins can edit admin scopes');
   }
 
-  const data = await adminService.patchMember(req.params.id!, {
-    role: body.role as Parameters<typeof adminService.patchMember>[1]['role'],
+  const data = await adminService.patchMember(req.params.id!, req.user!.role as UserRole, {
+    role: body.role as UserRole | undefined,
     is_active: body.is_active,
     academic_status: body.academic_status as Parameters<
       typeof adminService.patchMember
-    >[1]['academic_status'],
+    >[2]['academic_status'],
     can_issue_pins: body.can_issue_pins,
-    level: body.level as Parameters<typeof adminService.patchMember>[1]['level'],
+    level: body.level as Parameters<typeof adminService.patchMember>[2]['level'],
     year_of_admission: body.year_of_admission,
     expected_graduation_year: body.expected_graduation_year,
     actual_graduation_year: body.actual_graduation_year,
     admin_scopes: body.admin_scopes,
   });
   sendSuccess(res, data);
+}
+
+export async function syncExecutiveScopes(_req: Request, res: Response): Promise<void> {
+  const data = await adminService.syncExecutiveScopes();
+  sendSuccess(res, data, HTTP_STATUS.OK, `Synced scopes for ${data.updated} executive(s)`);
 }
 
 export async function getAnalytics(_req: Request, res: Response): Promise<void> {

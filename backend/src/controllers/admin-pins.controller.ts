@@ -208,6 +208,16 @@ export async function generatePinBulkStaff(req: Request, res: Response): Promise
 }
 
 /**
+ * GET /admin/pins — recent PINs for the issuer.
+ */
+export async function listPins(req: Request, res: Response): Promise<void> {
+  const isSuperAdmin = req.user!.role === 'super_admin';
+  const limit = req.query.limit ? Number(req.query.limit) : 50;
+  const data = await pinService.listPinsForActor(req.user!.id, isSuperAdmin, limit);
+  sendSuccess(res, { pins: data });
+}
+
+/**
  * GET /admin/pins/config — PIN issuance settings for issuers.
  */
 export async function getPinConfig(_req: Request, res: Response): Promise<void> {

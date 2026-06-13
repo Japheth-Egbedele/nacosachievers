@@ -35,6 +35,8 @@ export default function AdminElectionDetailPage() {
   const router = useRouter();
   const [setup, setSetup] = useState<SetupData | null>(null);
   const [results, setResults] = useState<ResultsData | null>(null);
+  const [resultsBlocked, setResultsBlocked] = useState(false);
+  const [liveConfirmOpen, setLiveConfirmOpen] = useState(false);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<'setup' | 'results'>('setup');
 
@@ -52,11 +54,23 @@ export default function AdminElectionDetailPage() {
       .catch(() => setSetup(null));
   }, [id]);
 
-  const loadResults = useCallback(() => {
+  const loadResults = useCallback((acknowledgeLive = false) => {
     if (!id) return;
-    apiFetch<ResultsData>(`/admin/elections/${id}/results`)
-      .then(setResults)
-      .catch(() => setResults(null));
+    const qs = acknowledgeLive ? '?acknowledge_live_results=true' : '';
+    apiFetch<ResultsData>(`/admin/elections/${id}/results${qs}`)
+      .then((data) => {
+        setResults(data);
+        setResultsBlocked(false);
+      })
+      .catch((err) => {
+        if (err instanceof ApiClientError && err.code === 'LIVE_RESULTS_BLOCKED') {
+          setResults(null);
+          setResultsBlocked(true);
+          return;
+        }
+        setResults(null);
+        setResultsBlocked(false);
+      });
   }, [id]);
 
   useEffect(() => {
@@ -396,6 +410,53 @@ export default function AdminElectionDetailPage() {
         </div>
       )}
 
+      {tab === 'results' && resultsBlocked && (
+        <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900 dark:bg-amber-950/30">
+          <p className="text-sm text-amber-900 dark:text-amber-100">
+            This election is still live. Provisional tallies can influence voters — confirm to view
+            live results.
+          </p>
+          <button
+            type="button"
+            onClick={() => setLiveConfirmOpen(true)}
+            className="mt-4 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white"
+          >
+            View live results
+          </button>
+        </div>
+      )}
+
+      {liveConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900">
+            <h3 className="text-lg font-bold">View live results?</h3>
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+              Tallies may change while voting is open. Only proceed if you need operational
+              visibility during the election.
+            </p>
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setLiveConfirmOpen(false)}
+                className="flex-1 rounded-lg border py-2 text-sm dark:border-zinc-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLiveConfirmOpen(false);
+                  loadResults(true);
+                }}
+                className="flex-1 rounded-lg bg-amber-600 py-2 text-sm font-semibold text-white"
+              >
+                Show live tallies
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {tab === 'results' && results && (
         <div className="mt-8">
           <ElectionResultsReport
@@ -406,7 +467,7 @@ export default function AdminElectionDetailPage() {
           />
         </div>
       )}
-      {tab === 'results' && !results && (
+      {tab === 'results' && !results && !resultsBlocked && (
         <p className="mt-8 text-sm text-zinc-500">No results data yet.</p>
       )}
     </div>

@@ -1,7 +1,19 @@
 import { z } from 'zod';
 
+const voteSelectionSchema = z.discriminatedUnion('choice', [
+  z.object({
+    position_id: z.string().uuid(),
+    choice: z.literal('candidate'),
+    candidate_id: z.string().uuid(),
+  }),
+  z.object({
+    position_id: z.string().uuid(),
+    choice: z.literal('abstain'),
+  }),
+]);
+
 export const castVoteSchema = z.object({
-  candidate_ids: z.array(z.string().uuid()).min(1),
+  selections: z.array(voteSelectionSchema).min(1),
 });
 
 export const createElectionSchema = z.object({

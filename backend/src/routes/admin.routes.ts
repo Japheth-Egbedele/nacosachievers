@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { catchAsync } from '../utils/catch-async.js';
 import { validate } from '../middleware/validate.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
+import { requireActiveUser } from '../middleware/require-active-user.js';
+import { requireAdminScope } from '../middleware/require-admin-scope.js';
 import { requireExecutive, requireSuperAdmin } from '../middleware/role-guard.js';
 import {
   assignExecutiveSchema,
@@ -15,20 +17,39 @@ import * as adminController from '../controllers/admin.controller.js';
 
 const router = Router();
 
-router.use(authMiddleware, requireExecutive);
+router.use(authMiddleware, catchAsync(requireActiveUser), requireExecutive);
 
-router.get('/members', validate(membersQuerySchema, 'query'), catchAsync(adminController.listMembers));
+const membersScope = requireAdminScope('members');
+const auditScope = requireAdminScope('audit');
+
+router.get(
+  '/members',
+  membersScope,
+  validate(membersQuerySchema, 'query'),
+  catchAsync(adminController.listMembers),
+);
 router.get(
   '/members/stats',
+  membersScope,
   validate(memberStatsQuerySchema, 'query'),
   catchAsync(adminController.getMemberStats),
 );
-router.get('/users/lookup', validate(userLookupQuerySchema, 'query'), catchAsync(adminController.lookupUsers));
-router.get('/members/:id', catchAsync(adminController.getMember));
-router.patch('/members/:id', validate(patchMemberSchema), catchAsync(adminController.patchMember));
-router.get('/analytics', catchAsync(adminController.getAnalytics));
-router.get('/executives', catchAsync(adminController.listExecutives));
-router.get('/audit-logs', catchAsync(adminController.listAuditLogs));
+router.get(
+  '/users/lookup',
+  membersScope,
+  validate(userLookupQuerySchema, 'query'),
+  catchAsync(adminController.lookupUsers),
+);
+router.get('/members/:id', membersScope, catchAsync(adminController.getMember));
+router.patch(
+  '/members/:id',
+  membersScope,
+  validate(patchMemberSchema),
+  catchAsync(adminController.patchMember),
+);
+router.get('/analytics', membersScope, catchAsync(adminController.getAnalytics));
+router.get('/executives', membersScope, catchAsync(adminController.listExecutives));
+router.get('/audit-logs', auditScope, catchAsync(adminController.listAuditLogs));
 
 router.get(
   '/session/promote/preview',
@@ -62,8 +83,13 @@ router.delete(
   requireSuperAdmin,
   catchAsync(adminController.revokeExecutive),
 );
+router.post(
+  '/executives/sync-scopes',
+  requireSuperAdmin,
+  catchAsync(adminController.syncExecutiveScopes),
+);
 
-router.get('/settings', catchAsync(adminController.getSettings));
+router.get('/settings', requireSuperAdmin, catchAsync(adminController.getSettings));
 router.patch(
   '/settings',
   requireSuperAdmin,

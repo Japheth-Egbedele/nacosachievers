@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { SpinnerCenter } from '@/app/components/Spinner';
 import HubDrawer from '@/app/hub/components/ui/HubDrawer';
 import { IconChevronLeft, IconMenu } from '@/app/hub/components/ui/HubIcons';
-import { filterAdminNav } from '@/lib/admin-nav';
+import { filterAdminNav, isAdminPathAllowed } from '@/lib/admin-nav';
 import type { AdminScope } from '@/lib/executive-offices';
 import { hubBtnSecondary } from '@/lib/hub-styles';
 import { useAuth } from '@/lib/auth-context';
@@ -66,6 +66,14 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const links = filterAdminNav(isSuperAdmin, canIssuePins, isAdmin, adminScopes);
   const canAccessAdmin = isAdmin || canIssuePins;
   const activeLabel = links.find((item) => navActive(pathname ?? '', item.href))?.label ?? 'Admin';
+
+  useEffect(() => {
+    if (loading || !pathname || !canAccessAdmin) return;
+    if (!isAdminPathAllowed(pathname, isSuperAdmin, canIssuePins, isAdmin, adminScopes)) {
+      const fallback = links[0]?.href ?? '/hub/elections';
+      router.replace(fallback);
+    }
+  }, [loading, pathname, canAccessAdmin, isSuperAdmin, canIssuePins, isAdmin, adminScopes, links, router]);
 
   useEffect(() => {
     if (loading || !pinOnlyIssuer || !pathname) return;

@@ -2,7 +2,7 @@ import { getOfficeByKey } from '../constants/executive-offices.js';
 import type { AdminScope } from '../constants/admin-scopes.js';
 import { getSupabase } from '../config/supabase.js';
 import type { AcademicStatus, UserLevel, UserRole } from '../constants/enums.js';
-import { NotFoundError, ValidationError } from '../utils/errors.js';
+import { NotFoundError, ValidationError, ForbiddenError } from '../utils/errors.js';
 import { expectedGraduationYear, isNumericStudentLevel } from '../utils/academic-level.js';
 import { parsePagination, buildMeta } from '../utils/pagination.js';
 import {
@@ -107,6 +107,7 @@ export async function getMemberDetail(memberId: string) {
  */
 export async function patchMember(
   memberId: string,
+  actorRole: UserRole,
   patch: {
     role?: UserRole;
     is_active?: boolean;
@@ -125,6 +126,30 @@ export async function patchMember(
     .eq('id', memberId)
     .maybeSingle();
   if (!existing) throw new NotFoundError('Member not found');
+
+  const privilegedPatch =
+    patch.role !== undefined ||
+    patch.is_active !== undefined ||
+    patch.academic_status !== undefined;
+  if (privilegedPatch && actorRole !== 'super_admin') {
+    throw new ForbiddenError('Only super admins can change role, active status, or academic status');
+  }
+  if (patch.role === 'super_admin' && actorRole !== 'super_admin') {
+    throw new ForbiddenError('Only super admins can grant super admin role');
+  }
+  if (existing.role === 'super_admin' && actorRole !== 'super_admin') {
+    throw new ForbiddenError('Only super admins can modify super admin accounts');
+  }
+  if (patch.is_active === false && existing.role === 'super_admin') {
+    const { count } = await getSupabase()
+      .from('users')
+      .select('id', { count: 'exact', head: true })
+      .eq('role', 'super_admin')
+      .eq('is_active', true);
+    if ((count ?? 0) <= 1) {
+      throw new ValidationError('Cannot deactivate the last active super admin');
+    }
+  }
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (patch.role !== undefined) update.role = patch.role;
@@ -282,10 +307,53 @@ export async function revokeExecutive(assignmentId: string): Promise<void> {
   if ((count ?? 0) === 0) {
     await getSupabase()
       .from('users')
-      .update({ role: 'member', updated_at: new Date().toISOString() })
+      .update({
+        role: 'member',
+        admin_scopes: [],
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', data.user_id)
       .eq('role', 'executive');
   }
+}
+
+/**
+ * Syncs admin_scopes on all active executives from their office_key assignment.
+ */
+export async function syncExecutiveScopes(): Promise<{ updated: number; skipped: number }> {
+  const { data: assignments, error } = await getSupabase()
+    .from('executive_assignments')
+    .select('user_id, office_key')
+    .eq('is_active', true);
+
+  if (error) throw error;
+
+  let updated = 0;
+  let skipped = 0;
+
+  for (const row of assignments ?? []) {
+    if (!row.office_key) {
+      skipped += 1;
+      continue;
+    }
+    const office = getOfficeByKey(row.office_key);
+    if (!office) {
+      skipped += 1;
+      continue;
+    }
+    const { error: updateError } = await getSupabase()
+      .from('users')
+      .update({
+        admin_scopes: office.defaultScopes,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', row.user_id)
+      .eq('role', 'executive');
+    if (!updateError) updated += 1;
+    else skipped += 1;
+  }
+
+  return { updated, skipped };
 }
 
 /**

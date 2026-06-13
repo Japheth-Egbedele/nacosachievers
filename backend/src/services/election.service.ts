@@ -1,6 +1,17 @@
 import { getSupabase } from '../config/supabase.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../utils/errors.js';
 import { MEMBER_LEVEL_BUCKETS } from '../utils/member-scope.js';
+import {
+  assertElectionDepartmentAccess,
+  countBallotsCast,
+  fetchAbstentionCounts,
+  fetchUserBallotSelections,
+  rollbackBallot,
+  userHasBallot,
+  type VoteSelection,
+} from './election-ballot.js';
+
+export type { VoteSelection };
 
 type SupabaseErrorLike = { code?: string; message?: string };
 
@@ -31,6 +42,8 @@ interface ElectionRow {
   start_date: string;
   end_date: string;
   require_all_positions?: boolean;
+  scope?: string | null;
+  department_id?: string | null;
   status?: ElectionStatus;
 }
 
@@ -152,6 +165,7 @@ export function buildPositionResults(
   positions: PositionRow[],
   candidates: CandidateRow[],
   countByCandidate: Map<string, number>,
+  abstentionCountByPosition: Map<string, number> = new Map(),
 ) {
   return positions.map((pos) => {
     const posCandidates = candidates
@@ -163,13 +177,15 @@ export function buildPositionResults(
       .sort((a, b) => b.vote_count - a.vote_count || a.name.localeCompare(b.name));
 
     const totalVotes = posCandidates.reduce((s, c) => s + c.vote_count, 0);
+    const abstentionCount = abstentionCountByPosition.get(pos.id) ?? 0;
+    const ballotsCast = totalVotes + abstentionCount;
     const maxVotes = posCandidates.length > 0 ? posCandidates[0]!.vote_count : 0;
     const winners = posCandidates.filter((c) => c.vote_count === maxVotes && maxVotes > 0);
     const isTie = winners.length > 1;
 
     const ranked = posCandidates.map((c) => {
       const vote_percentage =
-        totalVotes > 0 ? Math.round((c.vote_count / totalVotes) * 1000) / 10 : 0;
+        ballotsCast > 0 ? Math.round((c.vote_count / ballotsCast) * 1000) / 10 : 0;
       return {
         id: c.id,
         name: c.name,
@@ -189,6 +205,8 @@ export function buildPositionResults(
       title: pos.title,
       sort_order: pos.sort_order,
       total_votes: totalVotes,
+      ballots_cast: ballotsCast,
+      abstention_count: abstentionCount,
       contestant_count: posCandidates.length,
       winner: winner
         ? { id: winner.id, name: winner.name, vote_count: winner.vote_count }
@@ -235,24 +253,39 @@ export async function getDashboard(userId: string) {
 }
 
 export async function listElectionsForUser(userId: string, statusFilter?: ElectionStatus) {
+  const { data: userRow } = await getSupabase()
+    .from('users')
+    .select('department_id')
+    .eq('id', userId)
+    .maybeSingle();
+
+  const departmentId = userRow?.department_id ?? null;
+
   const { data: elections, error } = await getSupabase()
     .from('elections_with_status')
     .select('*')
-    .eq('scope', 'chapter')
     .order('created_at', { ascending: false });
 
   if (error) throw error;
 
-  const { data: userVotes } = await getSupabase()
-    .from('election_votes')
-    .select('election_id')
-    .eq('user_id', userId);
+  const visible = (elections ?? []).filter((e) => {
+    const scope = (e.scope as string | null) ?? 'chapter';
+    if (scope === 'chapter') return true;
+    if (scope === 'department' && departmentId && e.department_id === departmentId) return true;
+    return false;
+  });
 
-  const votedSet = new Set((userVotes ?? []).map((v) => v.election_id));
+  const ballotChecks = await Promise.all(
+    visible.map(async (e) => ({
+      id: e.id as string,
+      voted: await userHasBallot(e.id as string, userId),
+    })),
+  );
+  const votedSet = new Set(ballotChecks.filter((b) => b.voted).map((b) => b.id));
 
-  let enriched = (elections ?? []).map((e) => ({
+  let enriched = visible.map((e) => ({
     ...e,
-    user_has_voted: votedSet.has(e.id),
+    user_has_voted: votedSet.has(e.id as string),
   }));
 
   if (statusFilter) {
@@ -269,6 +302,8 @@ async function fetchUserRole(userId: string): Promise<string> {
 
 export async function getElectionDetail(electionId: string, userId: string) {
   const election = await getElectionRow(electionId);
+  await assertElectionDepartmentAccess(userId, election.scope, election.department_id);
+
   const userRole = await fetchUserRole(userId);
   const canVote = isVoterRole(userRole);
   const positions = await fetchPositions(electionId);
@@ -279,16 +314,12 @@ export async function getElectionDetail(electionId: string, userId: string) {
     .select('candidate_id, user_id')
     .eq('election_id', electionId);
 
-  const { countByCandidate, uniqueVoters } = buildVoteCounts(voteRows ?? []);
+  const { countByCandidate } = buildVoteCounts(voteRows ?? []);
+  const abstentionCounts = await fetchAbstentionCounts(electionId);
+  const uniqueVoters = await countBallotsCast(electionId);
 
-  const { data: userVoteRows } = await getSupabase()
-    .from('election_votes')
-    .select('candidate_id')
-    .eq('election_id', electionId)
-    .eq('user_id', userId);
-
-  const userVoteIds = userVoteRows?.map((r) => r.candidate_id) ?? [];
-  const ballotLocked = userVoteIds.length > 0;
+  const userBallot = await fetchUserBallotSelections(electionId, userId);
+  const ballotLocked = userBallot !== null;
   const showCounts = election.status === 'completed';
 
   const positionsWithCandidates = positions.map((pos) => ({
@@ -316,17 +347,24 @@ export async function getElectionDetail(electionId: string, userId: string) {
       status: election.status,
       start_date: election.start_date,
       end_date: election.end_date,
+      scope: election.scope ?? 'chapter',
+      department_id: election.department_id ?? null,
       require_all_positions: election.require_all_positions ?? true,
     },
     positions: positionsWithCandidates,
     contestable_positions: contestable.length,
-    user_vote: ballotLocked ? userVoteIds : null,
+    user_vote: ballotLocked ? userBallot : null,
     ballot_locked: ballotLocked,
     can_vote: canVote,
   };
 
   if (showCounts) {
-    const positionResults = buildPositionResults(positions, candidates, countByCandidate);
+    const positionResults = buildPositionResults(
+      positions,
+      candidates,
+      countByCandidate,
+      abstentionCounts,
+    );
     const analytics = await buildAnalytics(uniqueVoters, positions, candidates);
     const extended = await buildExtendedAnalytics(electionId, positionResults, uniqueVoters);
     payload.results = {
@@ -362,11 +400,13 @@ async function buildAnalytics(
 export async function castVote(
   electionId: string,
   userId: string,
-  candidateIds: string[],
+  selections: VoteSelection[],
 ) {
   await assertUserCanVote(userId);
 
   const election = await getElectionRow(electionId);
+  await assertElectionDepartmentAccess(userId, election.scope, election.department_id);
+
   if (election.status !== 'active') {
     throw new ValidationError('This election is not currently active');
   }
@@ -374,21 +414,10 @@ export async function castVote(
   const positions = await fetchPositions(electionId);
   const candidates = await fetchCandidates(electionId);
   const candidateMap = new Map(candidates.map((c) => [c.id, c]));
+  const positionMap = new Map(positions.map((p) => [p.id, p]));
 
-  if (candidateIds.length !== new Set(candidateIds).size) {
-    throw new ValidationError('Duplicate selections are not allowed');
-  }
-
-  const positionIdsPicked = new Set<string>();
-  for (const cid of candidateIds) {
-    const cand = candidateMap.get(cid);
-    if (!cand || cand.election_id !== electionId) {
-      throw new ValidationError('One or more invalid contestants for this election');
-    }
-    if (positionIdsPicked.has(cand.position_id)) {
-      throw new ValidationError('You may only select one contestant per position');
-    }
-    positionIdsPicked.add(cand.position_id);
+  if (selections.length !== new Set(selections.map((s) => s.position_id)).size) {
+    throw new ValidationError('Duplicate position selections are not allowed');
   }
 
   const contestablePositionIds = positions
@@ -400,14 +429,52 @@ export async function castVote(
   }
 
   const requireAll = election.require_all_positions ?? true;
-  if (requireAll) {
-    if (positionIdsPicked.size !== contestablePositionIds.length) {
-      throw new ValidationError(
-        `Select exactly one contestant for each position (${contestablePositionIds.length} required)`,
-      );
+  if (requireAll && selections.length !== contestablePositionIds.length) {
+    throw new ValidationError(
+      `Respond to every position — pick a candidate or abstain (${contestablePositionIds.length} required)`,
+    );
+  }
+  if (!requireAll && selections.length === 0) {
+    throw new ValidationError('Select at least one position');
+  }
+
+  const candidateInserts: Array<{
+    election_id: string;
+    user_id: string;
+    candidate_id: string;
+    position_id: string;
+  }> = [];
+  const abstainInserts: Array<{
+    election_id: string;
+    user_id: string;
+    position_id: string;
+  }> = [];
+
+  for (const sel of selections) {
+    if (!positionMap.has(sel.position_id)) {
+      throw new ValidationError('Invalid position for this election');
     }
-  } else if (positionIdsPicked.size === 0) {
-    throw new ValidationError('Select at least one contestant');
+    if (!contestablePositionIds.includes(sel.position_id)) {
+      throw new ValidationError('One or more positions have no contestants');
+    }
+    if (sel.choice === 'abstain') {
+      abstainInserts.push({
+        election_id: electionId,
+        user_id: userId,
+        position_id: sel.position_id,
+      });
+      continue;
+    }
+    const cand = candidateMap.get(sel.candidate_id);
+    if (!cand || cand.election_id !== electionId || cand.position_id !== sel.position_id) {
+      throw new ValidationError('One or more invalid contestants for this election');
+    }
+    candidateInserts.push({
+      election_id: electionId,
+      user_id: userId,
+      candidate_id: sel.candidate_id,
+      position_id: sel.position_id,
+    });
   }
 
   const { error: ballotError } = await getSupabase()
@@ -419,33 +486,41 @@ export async function castVote(
       throw new ValidationError('You have already voted in this election');
     }
     if (ballotError.code === '42P01') {
-      const { data: existing } = await getSupabase()
-        .from('election_votes')
-        .select('id')
-        .eq('election_id', electionId)
-        .eq('user_id', userId)
-        .limit(1);
-      if (existing?.length) {
+      throw new ValidationError(
+        'Election ballot schema is incomplete. Run MANUAL_SETUP §2.22.2 in Supabase.',
+        'ELECTION_SCHEMA_INCOMPLETE',
+      );
+    }
+    throw ballotError;
+  }
+
+  if (candidateInserts.length > 0) {
+    const { error: voteError } = await getSupabase().from('election_votes').insert(candidateInserts);
+    if (voteError) {
+      await rollbackBallot(electionId, userId);
+      if (voteError.code === '23505') {
         throw new ValidationError('You have already voted in this election');
       }
-    } else {
-      throw ballotError;
+      throw voteError;
     }
   }
 
-  const inserts = candidateIds.map((candidateId) => ({
-    election_id: electionId,
-    user_id: userId,
-    candidate_id: candidateId,
-  }));
-
-  const { error: voteError } = await getSupabase().from('election_votes').insert(inserts);
-
-  if (voteError) {
-    if (voteError.code === '23505') {
-      throw new ValidationError('You have already voted in this election');
+  if (abstainInserts.length > 0) {
+    const { error: abstainError } = await getSupabase()
+      .from('election_position_abstentions')
+      .insert(abstainInserts);
+    if (abstainError) {
+      await rollbackBallot(electionId, userId);
+      await getSupabase()
+        .from('election_votes')
+        .delete()
+        .eq('election_id', electionId)
+        .eq('user_id', userId);
+      if (abstainError.code === '23505') {
+        throw new ValidationError('You have already voted in this election');
+      }
+      throw abstainError;
     }
-    throw voteError;
   }
 
   return getElectionDetail(electionId, userId);
@@ -466,6 +541,9 @@ export async function createElection(
 ) {
   if (new Date(input.start_date) >= new Date(input.end_date)) {
     throw new ValidationError('End date must be after start date');
+  }
+  if (input.scope === 'department' && !input.department_id) {
+    throw new ValidationError('Department elections require a department');
   }
 
   const { data, error } = await getSupabase()
@@ -502,6 +580,18 @@ export async function updateElection(
   if (updates.require_all_positions !== undefined && election.status !== 'upcoming') {
     throw new ValidationError('Ballot rules can only be changed before the election goes live');
   }
+  if (
+    election.status !== 'upcoming' &&
+    (updates.start_date !== undefined || updates.end_date !== undefined)
+  ) {
+    throw new ValidationError('Election dates can only be changed before the election goes live');
+  }
+
+  const nextStart = updates.start_date ?? election.start_date;
+  const nextEnd = updates.end_date ?? election.end_date;
+  if (new Date(nextStart) >= new Date(nextEnd)) {
+    throw new ValidationError('End date must be after start date');
+  }
 
   const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (updates.title !== undefined) payload.title = updates.title;
@@ -525,6 +615,10 @@ export async function updateElection(
 }
 
 export async function deleteElection(electionId: string) {
+  const election = await getElectionRow(electionId);
+  if (election.status !== 'upcoming') {
+    throw new ValidationError('Only upcoming elections can be deleted');
+  }
   const { error } = await getSupabase().from('elections').delete().eq('id', electionId);
   if (error) throw error;
 }
@@ -925,8 +1019,18 @@ export async function getAdminStats() {
   };
 }
 
-export async function getElectionResults(electionId: string) {
+export async function getElectionResults(
+  electionId: string,
+  options?: { allowLive?: boolean },
+) {
   const election = await getElectionRow(electionId);
+  if (election.status === 'active' && !options?.allowLive) {
+    throw new ValidationError(
+      'Live results are hidden during voting. Confirm to view provisional tallies.',
+      'LIVE_RESULTS_BLOCKED',
+    );
+  }
+
   const positions = await fetchPositions(electionId);
   const candidates = await fetchCandidates(electionId);
 
@@ -935,8 +1039,15 @@ export async function getElectionResults(electionId: string) {
     .select('candidate_id, user_id')
     .eq('election_id', electionId);
 
-  const { countByCandidate, uniqueVoters } = buildVoteCounts(voteRows ?? []);
-  const positionResults = buildPositionResults(positions, candidates, countByCandidate);
+  const { countByCandidate } = buildVoteCounts(voteRows ?? []);
+  const abstentionCounts = await fetchAbstentionCounts(electionId);
+  const uniqueVoters = await countBallotsCast(electionId);
+  const positionResults = buildPositionResults(
+    positions,
+    candidates,
+    countByCandidate,
+    abstentionCounts,
+  );
   const analytics = await buildAnalytics(uniqueVoters, positions, candidates);
   const extended = await buildExtendedAnalytics(electionId, positionResults, uniqueVoters);
 
@@ -949,6 +1060,7 @@ export async function getElectionResults(electionId: string) {
       start_date: election.start_date,
       end_date: election.end_date,
       require_all_positions: election.require_all_positions ?? true,
+      live_preview: election.status === 'active' && Boolean(options?.allowLive),
     },
     positions: positionResults,
     analytics: { ...analytics, extended },

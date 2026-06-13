@@ -44,8 +44,27 @@ export default function AdminPinsPage() {
   const [busy, setBusy] = useState(false);
   const [issued, setIssued] = useState<IssuedPinResult[]>([]);
   const [pinExpiryDays, setPinExpiryDays] = useState(14);
+  const [recentPins, setRecentPins] = useState<
+    Array<{
+      id: string;
+      matric_number: string;
+      staff_email: string | null;
+      expires_at: string;
+      is_used: boolean;
+      is_active: boolean;
+      is_expired: boolean;
+      level_of_entry: string | null;
+      created_at: string;
+    }>
+  >([]);
 
   const allowed = canIssuePins;
+
+  function loadRecentPins() {
+    void apiFetch<{ pins: typeof recentPins }>('/admin/pins')
+      .then((d) => setRecentPins(d.pins))
+      .catch(() => setRecentPins([]));
+  }
 
   useEffect(() => {
     if (!loading && !allowed) router.replace('/hub/elections');
@@ -60,7 +79,19 @@ export default function AdminPinsPage() {
     void apiFetch<{ pin_expiry_days: number }>('/admin/pins/config')
       .then((c) => setPinExpiryDays(c.pin_expiry_days))
       .catch(() => setPinExpiryDays(14));
+    loadRecentPins();
   }, [allowed]);
+
+  async function invalidatePin(pinId: string) {
+    if (!confirm('Invalidate this unused PIN? It cannot be used for registration.')) return;
+    setError('');
+    try {
+      await apiFetch(`/admin/pins/invalidate/${pinId}`, { method: 'POST' });
+      loadRecentPins();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Failed to invalidate PIN');
+    }
+  }
 
   function resetStudentForm() {
     setRows([emptyPinRow()]);
@@ -157,6 +188,7 @@ export default function AdminPinsPage() {
       });
       setIssued(data.items);
       setStep('results');
+      loadRecentPins();
     } catch (err) {
       if (err instanceof ApiClientError && err.status === 401) {
         setError(`${err.message} If this keeps happening, use the same browser you logged in with.`);
@@ -225,6 +257,7 @@ export default function AdminPinsPage() {
         })),
       );
       setStep('results');
+      loadRecentPins();
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Failed to generate staff PINs');
     } finally {
@@ -251,6 +284,52 @@ export default function AdminPinsPage() {
           Issue PIN(s)
         </button>
       </div>
+
+      {recentPins.length > 0 && (
+        <div className="hub-card mt-6 overflow-x-auto p-4">
+          <h2 className="text-sm font-semibold text-[var(--color-hub-text)]">Recent PINs</h2>
+          <table className="mt-3 w-full min-w-[32rem] text-left text-sm">
+            <thead>
+              <tr className="text-xs uppercase text-zinc-500">
+                <th className="pb-2 pr-3">Credential</th>
+                <th className="pb-2 pr-3">Level</th>
+                <th className="pb-2 pr-3">Status</th>
+                <th className="pb-2">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentPins.map((pin) => (
+                <tr key={pin.id} className="border-t border-[var(--color-hub-border)]">
+                  <td className="py-2 pr-3 font-mono text-xs">
+                    {pin.staff_email ?? pin.matric_number}
+                  </td>
+                  <td className="py-2 pr-3">{pin.level_of_entry ?? '—'}</td>
+                  <td className="py-2 pr-3">
+                    {pin.is_used
+                      ? 'Used'
+                      : pin.is_active
+                        ? 'Active'
+                        : pin.is_expired
+                          ? 'Expired'
+                          : 'Inactive'}
+                  </td>
+                  <td className="py-2">
+                    {pin.is_active && (
+                      <button
+                        type="button"
+                        onClick={() => invalidatePin(pin.id)}
+                        className="text-xs font-medium text-red-600 hover:underline"
+                      >
+                        Invalidate
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <HubModal
         open={modalOpen}

@@ -843,6 +843,32 @@ create index if not exists idx_audit_logs_created on audit_logs(created_at desc)
 create index if not exists idx_audit_logs_action on audit_logs(action, created_at desc);
 ```
 
+### 2.22.2 — Election abstentions and per-position votes
+
+Run after §2.22.1. Required for abstain ballots and transactional vote integrity.
+
+```sql
+alter table election_votes
+  add column if not exists position_id uuid references election_positions(id) on delete cascade;
+
+create unique index if not exists idx_election_votes_one_per_position
+  on election_votes (election_id, user_id, position_id);
+
+create table if not exists election_position_abstentions (
+  id uuid primary key default uuid_generate_v4(),
+  election_id uuid not null references elections(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  position_id uuid not null references election_positions(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (election_id, user_id, position_id)
+);
+
+create index if not exists idx_election_abstentions_election
+  on election_position_abstentions(election_id);
+```
+
+Enable RLS on `election_position_abstentions` with service-role-only policies matching other hub tables.
+
 Enable RLS on new tables with service-role-only policies matching other hub tables.
 
 ### 2.6.2 — Academic onboarding, scoped admin, executive offices

@@ -15,6 +15,8 @@ export interface ElectionPosition {
   sort_order: number;
   candidates: ElectionPositionCandidate[];
   total_votes?: number;
+  ballots_cast?: number;
+  abstention_count?: number;
   contestant_count?: number;
   winner?: { id: string; name: string; vote_count: number } | null;
   is_tie?: boolean;

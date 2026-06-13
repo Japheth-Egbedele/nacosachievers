@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { catchAsync } from '../utils/catch-async.js';
 import { validate } from '../middleware/validate.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
+import { requireActiveUser } from '../middleware/require-active-user.js';
+import { requireAdminScope } from '../middleware/require-admin-scope.js';
 import { requireExecutive } from '../middleware/role-guard.js';
 import { imageUpload } from '../middleware/upload.middleware.js';
 import {
@@ -16,7 +18,12 @@ publicRouter.get('/', validate(blogQuerySchema, 'query'), catchAsync(blogControl
 publicRouter.get('/:slug', catchAsync(blogController.getPost));
 
 const adminRouter = Router();
-adminRouter.use(authMiddleware, requireExecutive);
+adminRouter.use(
+  authMiddleware,
+  catchAsync(requireActiveUser),
+  requireExecutive,
+  requireAdminScope('cms'),
+);
 adminRouter.get('/', validate(blogQuerySchema, 'query'), catchAsync(blogController.listPostsAdmin));
 adminRouter.post(
   '/',

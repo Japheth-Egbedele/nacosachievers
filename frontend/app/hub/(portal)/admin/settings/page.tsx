@@ -31,6 +31,12 @@ export default function AdminSettingsPage() {
   } | null>(null);
   const [sessionMsg, setSessionMsg] = useState('');
 
+  function confirmSessionAction(label: 'PROMOTE' | 'GRADUATE', onConfirm: () => void) {
+    const typed = window.prompt(`Type ${label} to confirm this bulk session action:`);
+    if (typed?.trim().toUpperCase() !== label) return;
+    onConfirm();
+  }
+
   useEffect(() => {
     if (!loading && !isSuperAdmin) router.replace('/hub/admin');
   }, [loading, isSuperAdmin, router]);
@@ -174,11 +180,13 @@ export default function AdminSettingsPage() {
             type="button"
             className={`${hubBtnPrimary} px-4 py-2 text-sm`}
             onClick={() =>
-              void apiFetch<{ updated: number }>('/admin/session/promote', { method: 'POST' }).then(
-                (r) => {
-                  setSessionMsg(`Promoted ${r.updated} member(s).`);
-                  setPromotePreview(null);
-                },
+              confirmSessionAction('PROMOTE', () =>
+                void apiFetch<{ updated: number }>('/admin/session/promote', { method: 'POST' }).then(
+                  (r) => {
+                    setSessionMsg(`Promoted ${r.updated} member(s).`);
+                    setPromotePreview(null);
+                  },
+                ),
               )
             }
           >
@@ -201,12 +209,14 @@ export default function AdminSettingsPage() {
             type="button"
             className="rounded-lg bg-amber-600 px-4 py-2 text-sm text-white"
             onClick={() =>
-              void apiFetch<{ updated: number; year: number }>('/admin/session/graduate', {
-                method: 'POST',
-              }).then((r) => {
-                setSessionMsg(`Graduated ${r.updated} member(s) for ${r.year}.`);
-                setGraduatePreview(null);
-              })
+              confirmSessionAction('GRADUATE', () =>
+                void apiFetch<{ updated: number; year: number }>('/admin/session/graduate', {
+                  method: 'POST',
+                }).then((r) => {
+                  setSessionMsg(`Graduated ${r.updated} member(s) for ${r.year}.`);
+                  setGraduatePreview(null);
+                }),
+              )
             }
           >
             Apply graduate

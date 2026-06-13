@@ -22,11 +22,6 @@ export async function requirePinIssuer(
     return;
   }
 
-  if (req.user.can_issue_pins === true) {
-    next();
-    return;
-  }
-
   try {
     const { data, error } = await getSupabase()
       .from('users')

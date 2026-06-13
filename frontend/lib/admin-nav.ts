@@ -29,7 +29,7 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { href: '/hub/admin/audit', label: 'Audit log', scope: 'audit' },
 ];
 
-/** Pin-only issuers see only PINs. Executives are filtered by admin_scopes unless legacy (empty scopes). */
+/** Pin-only issuers see only PINs. Executives are filtered by admin_scopes. */
 export function filterAdminNav(
   isSuperAdmin: boolean,
   canIssuePins = false,
@@ -37,15 +37,35 @@ export function filterAdminNav(
   adminScopes: AdminScope[] = [],
 ): AdminNavItem[] {
   const pinOnlyIssuer = canIssuePins && !isSuperAdmin && !isExecutive;
-  const legacyExecutive = isExecutive && adminScopes.length === 0;
 
   return ADMIN_NAV.filter((item) => {
     if (pinOnlyIssuer) return item.pinIssuerOnly === true;
     if (item.superAdminOnly && !isSuperAdmin) return false;
     if (item.pinIssuerOnly && !isSuperAdmin && !canIssuePins) return false;
-    if (item.scope && isExecutive && !isSuperAdmin && !legacyExecutive) {
+    if (item.scope && isExecutive && !isSuperAdmin) {
       return adminScopes.includes(item.scope);
     }
     return true;
   });
+}
+
+/** Whether the current pathname is allowed for this admin user. */
+export function isAdminPathAllowed(
+  pathname: string,
+  isSuperAdmin: boolean,
+  canIssuePins: boolean,
+  isExecutive: boolean,
+  adminScopes: AdminScope[] = [],
+): boolean {
+  const pinOnlyIssuer = canIssuePins && !isSuperAdmin && !isExecutive;
+  if (pinOnlyIssuer) {
+    return pathname === '/hub/admin/pins' || pathname.startsWith('/hub/admin/pins/');
+  }
+  if (pathname === '/hub/admin' || pathname === '/hub/admin/') return true;
+  const links = filterAdminNav(isSuperAdmin, canIssuePins, isExecutive, adminScopes);
+  return links.some(
+    (item) =>
+      item.href !== '/hub/admin' &&
+      (pathname === item.href || pathname.startsWith(`${item.href}/`)),
+  );
 }
