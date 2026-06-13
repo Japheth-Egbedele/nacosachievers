@@ -14,7 +14,7 @@ Set `NEXT_PUBLIC_API_URL=http://localhost:3000` in `frontend/.env.local`.
 
 ## Database
 
-1. Run all SQL in [MANUAL_SETUP.md](./MANUAL_SETUP.md) including **§2.6.1**, **§2.6.2**, **§2.6.3** (PIN lockouts), **§2.6.4** (PIN expiry setting), **§2.19.1** (staff role), and **§2.22 Elections**.
+1. Run all SQL in [MANUAL_SETUP.md](./MANUAL_SETUP.md) including **§2.6.1**, **§2.6.2**, **§2.6.3** (PIN lockouts), **§2.6.4** (PIN expiry setting), **§2.19.1** (staff role), **§2.22 Elections**, and **§2.22.2** (abstentions).
 2. Seed super admin (§2.19).
 
 ## How hub onboarding works
@@ -232,6 +232,21 @@ All three rows can share the same hash if they share the password `TestPass123!`
 3. As a **student account** (member, staff, or executive — not super_admin): `/hub/elections` → open election → pick one contestant per position → **Review & submit ballot**.
 4. Confirm second submit returns an error; **Results** tab appears only after the election is **completed** (not while voting is open).
 5. Admin **Results & analytics** tab: NUESA-style report, extended analytics, share link at `/hub/elections/:id/results` (public, no login).
+
+### Abstain ballots
+
+1. On an active election, each position shows **None of the above** (required when **require all positions** is on).
+2. Submit an all-abstain ballot — it should lock successfully.
+3. Admin live results while active: blocked until you confirm **View live results** on the election admin page.
+
+### Executive scopes (post-deploy)
+
+1. Super admin: `POST /api/v1/admin/executives/sync-scopes` (or use **Admin → Executives** if exposed in UI later).
+2. Log in as a scoped executive (e.g. finance-only) — confirm `/hub/admin/members` redirects away and API returns 403.
+
+### Admin overview — Active sessions
+
+**Active sessions** counts non-revoked, unexpired **refresh tokens** (valid Hub login sessions), not academic year or live “online users”.
 
 ### Election detail returns 500
 

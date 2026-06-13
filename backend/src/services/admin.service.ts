@@ -2,7 +2,7 @@ import { getOfficeByKey } from '../constants/executive-offices.js';
 import type { AdminScope } from '../constants/admin-scopes.js';
 import { getSupabase } from '../config/supabase.js';
 import type { AcademicStatus, UserLevel, UserRole } from '../constants/enums.js';
-import { NotFoundError, ValidationError, ForbiddenError } from '../utils/errors.js';
+import { NotFoundError, ValidationError } from '../utils/errors.js';
 import { expectedGraduationYear, isNumericStudentLevel } from '../utils/academic-level.js';
 import { parsePagination, buildMeta } from '../utils/pagination.js';
 import {
@@ -12,10 +12,11 @@ import {
   normalizeMemberScope,
   type MemberScope,
 } from '../utils/member-scope.js';
+import { assertMemberPatchAllowed } from '../utils/member-patch-guard.js';
 import * as settingsService from './settings.service.js';
 
 const MEMBER_COLUMNS =
-  'id, matric_number, email, role, first_name, last_name, display_name, level, level_of_entry, year_of_admission, expected_graduation_year, academic_status, is_active, wallet_balance, is_email_verified, can_issue_pins, created_at, last_login_at';
+  'id, matric_number, email, role, first_name, last_name, display_name, level, level_of_entry, year_of_admission, expected_graduation_year, academic_status, is_active, wallet_balance, is_email_verified, can_issue_pins, admin_scopes, created_at, last_login_at';
 
 /**
  * Paginated member list for admin portal.
@@ -127,19 +128,8 @@ export async function patchMember(
     .maybeSingle();
   if (!existing) throw new NotFoundError('Member not found');
 
-  const privilegedPatch =
-    patch.role !== undefined ||
-    patch.is_active !== undefined ||
-    patch.academic_status !== undefined;
-  if (privilegedPatch && actorRole !== 'super_admin') {
-    throw new ForbiddenError('Only super admins can change role, active status, or academic status');
-  }
-  if (patch.role === 'super_admin' && actorRole !== 'super_admin') {
-    throw new ForbiddenError('Only super admins can grant super admin role');
-  }
-  if (existing.role === 'super_admin' && actorRole !== 'super_admin') {
-    throw new ForbiddenError('Only super admins can modify super admin accounts');
-  }
+  assertMemberPatchAllowed(actorRole, existing.role as UserRole, patch);
+
   if (patch.is_active === false && existing.role === 'super_admin') {
     const { count } = await getSupabase()
       .from('users')

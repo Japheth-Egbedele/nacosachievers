@@ -5,6 +5,7 @@ import {
   authRateLimiter,
   correctPendingEmailRateLimiter,
   loginRateLimiter,
+  refreshRateLimiter,
   registerRateLimiter,
   resendVerificationRateLimiter,
   validatePinRateLimiter,
@@ -66,7 +67,7 @@ router.post(
   catchAsync(authController.login),
 );
 
-router.post('/refresh', catchAsync(authController.refresh));
+router.post('/refresh', refreshRateLimiter, catchAsync(authController.refresh));
 
 router.post('/logout', catchAsync(authController.logout));
 

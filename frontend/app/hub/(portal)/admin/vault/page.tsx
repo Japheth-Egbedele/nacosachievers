@@ -27,16 +27,46 @@ interface Course {
   semester?: string;
 }
 
+interface VaultFlag {
+  id: string;
+  reason: string;
+  created_at: string;
+  vault_uploads?: { title?: string };
+}
+
+interface Lecturer {
+  id: string;
+  name: string;
+  title?: string;
+}
+
+interface TeachingAssignment {
+  id: string;
+  semester: string;
+  teaching_status: string;
+  lecturers?: { name?: string; title?: string };
+}
+
+type VaultTab = 'pending' | 'courses' | 'create' | 'flags' | 'assignments';
+
 const vaultTabs = [
   { key: 'pending', label: 'Pending review' },
   { key: 'courses', label: 'Courses' },
   { key: 'create', label: 'Create course' },
+  { key: 'flags', label: 'Flags' },
+  { key: 'assignments', label: 'Assignments' },
 ];
 
 export default function AdminVaultPage() {
-  const [tab, setTab] = useState<'pending' | 'courses' | 'create'>('pending');
+  const [tab, setTab] = useState<VaultTab>('pending');
   const [pending, setPending] = useState<PendingUpload[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [flags, setFlags] = useState<VaultFlag[]>([]);
+  const [lecturers, setLecturers] = useState<Lecturer[]>([]);
+  const [assignCourseId, setAssignCourseId] = useState('');
+  const [assignments, setAssignments] = useState<TeachingAssignment[]>([]);
+  const [assignLecturerId, setAssignLecturerId] = useState('');
+  const [assignSemester, setAssignSemester] = useState<'first' | 'second'>('first');
   const [departments, setDepartments] = useState<Department[]>([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -64,6 +94,32 @@ export default function AdminVaultPage() {
       .finally(() => setLoading(false));
   };
 
+  const loadFlags = () => {
+    setLoading(true);
+    apiFetch<VaultFlag[]>('/vault/flags')
+      .then(setFlags)
+      .catch(() => setFlags([]))
+      .finally(() => setLoading(false));
+  };
+
+  const loadLecturers = () => {
+    apiFetch<Lecturer[]>('/admin/lecturers')
+      .then(setLecturers)
+      .catch(() => setLecturers([]));
+  };
+
+  const loadAssignments = (courseId: string) => {
+    if (!courseId) {
+      setAssignments([]);
+      return;
+    }
+    setLoading(true);
+    apiFetch<{ lecturers: TeachingAssignment[] }>(`/vault/courses/${courseId}`)
+      .then((d) => setAssignments(d.lecturers ?? []))
+      .catch(() => setAssignments([]))
+      .finally(() => setLoading(false));
+  };
+
   useEffect(() => {
     void getDepartments().then(setDepartments).catch(() => setDepartments([]));
   }, []);
@@ -74,8 +130,17 @@ export default function AdminVaultPage() {
     setLoading(true);
     if (tab === 'pending') loadPending();
     else if (tab === 'courses') loadCourses();
-    else setLoading(false);
+    else if (tab === 'flags') loadFlags();
+    else if (tab === 'assignments') {
+      loadCourses();
+      loadLecturers();
+      setLoading(false);
+    } else setLoading(false);
   }, [tab]);
+
+  useEffect(() => {
+    if (tab === 'assignments' && assignCourseId) loadAssignments(assignCourseId);
+  }, [tab, assignCourseId]);
 
   async function review(id: string, status: 'approved' | 'rejected') {
     setError('');
@@ -87,6 +152,27 @@ export default function AdminVaultPage() {
       loadPending();
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Review failed');
+    }
+  }
+
+  async function resolveFlag(id: string) {
+    setError('');
+    try {
+      await apiFetch(`/vault/flags/${id}/resolve`, { method: 'PATCH' });
+      loadFlags();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Resolve failed');
+    }
+  }
+
+  async function deleteCourse(id: string) {
+    if (!confirm('Delete this course and its assignments?')) return;
+    setError('');
+    try {
+      await apiFetch(`/vault/courses/${id}`, { method: 'DELETE' });
+      loadCourses();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Delete failed');
     }
   }
 
@@ -124,16 +210,36 @@ export default function AdminVaultPage() {
     }
   }
 
+  async function addAssignment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!assignCourseId || !assignLecturerId) {
+      setError('Select a course and lecturer');
+      return;
+    }
+    setError('');
+    try {
+      await apiFetch(`/admin/vault/courses/${assignCourseId}/assignments`, {
+        method: 'POST',
+        body: JSON.stringify({
+          lecturer_id: assignLecturerId,
+          semester: assignSemester,
+          teaching_status: 'active',
+        }),
+      });
+      setAssignLecturerId('');
+      loadAssignments(assignCourseId);
+      setSuccess('Assignment added.');
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Assignment failed');
+    }
+  }
+
   return (
     <div>
-      <AdminPageHeader title="Vault" description="Review pending uploads and manage courses." />
+      <AdminPageHeader title="Vault" description="Review uploads, manage courses, flags, and teaching assignments." />
       {error && <HubAlert variant="error" className="mb-4">{error}</HubAlert>}
       {success && <HubAlert variant="success" className="mb-4">{success}</HubAlert>}
-      <HubPillTabs
-        tabs={vaultTabs}
-        active={tab}
-        onChange={(k) => setTab(k as 'pending' | 'courses' | 'create')}
-      />
+      <HubPillTabs tabs={vaultTabs} active={tab} onChange={(k) => setTab(k as VaultTab)} />
       {loading ? (
         <div className="mt-6">
           <SpinnerCenter />
@@ -170,17 +276,106 @@ export default function AdminVaultPage() {
           {tab === 'courses' && (
             <HubList className="mt-6">
               {courses.map((c) => (
-                <HubListCard key={c.id} className="block">
-                  <span className="font-mono text-xs text-[var(--color-brand)]">{c.course_code}</span>
-                  <span className="text-[var(--color-hub-text)]">
-                    {' '}
-                    — {c.course_name} (L{c.level}
-                    {c.semester ? `, ${c.semester} sem` : ''})
-                  </span>
+                <HubListCard key={c.id} className="flex items-center justify-between gap-3">
+                  <div>
+                    <span className="font-mono text-xs text-[var(--color-brand)]">{c.course_code}</span>
+                    <span className="text-[var(--color-hub-text)]">
+                      {' '}
+                      — {c.course_name} (L{c.level}
+                      {c.semester ? `, ${c.semester} sem` : ''})
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => deleteCourse(c.id)}
+                    className="text-sm text-red-600 hover:underline"
+                  >
+                    Delete
+                  </button>
                 </HubListCard>
               ))}
               {courses.length === 0 && <HubListEmpty title="No courses yet" />}
             </HubList>
+          )}
+          {tab === 'flags' && (
+            <HubList className="mt-6">
+              {flags.map((f) => (
+                <HubListCard key={f.id}>
+                  <div>
+                    <p className="font-medium">{f.vault_uploads?.title ?? 'Upload'}</p>
+                    <p className="text-sm text-zinc-600">{f.reason}</p>
+                    <p className="text-xs text-zinc-500">{new Date(f.created_at).toLocaleString()}</p>
+                  </div>
+                  <button type="button" onClick={() => resolveFlag(f.id)} className={hubLink}>
+                    Resolve
+                  </button>
+                </HubListCard>
+              ))}
+              {flags.length === 0 && <HubListEmpty title="No open flags" />}
+            </HubList>
+          )}
+          {tab === 'assignments' && (
+            <div className="mt-6 max-w-xl space-y-6">
+              <HubField label="Course">
+                <select
+                  value={assignCourseId}
+                  onChange={(e) => setAssignCourseId(e.target.value)}
+                  className="hub-input w-full rounded-xl px-3.5 py-2.5 text-sm"
+                >
+                  <option value="">— Select course —</option>
+                  {courses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.course_code} — {c.course_name}
+                    </option>
+                  ))}
+                </select>
+              </HubField>
+              {assignCourseId && (
+                <>
+                  <ul className="space-y-2 text-sm">
+                    {assignments.map((a) => (
+                      <li key={a.id} className="rounded-lg border px-3 py-2">
+                        {a.lecturers?.title} {a.lecturers?.name} · {a.semester} sem · {a.teaching_status}
+                      </li>
+                    ))}
+                    {assignments.length === 0 && (
+                      <li className="text-zinc-500">No lecturers assigned yet.</li>
+                    )}
+                  </ul>
+                  <form onSubmit={addAssignment} className="space-y-3 rounded-xl border p-4">
+                    <HubField label="Lecturer">
+                      <select
+                        required
+                        value={assignLecturerId}
+                        onChange={(e) => setAssignLecturerId(e.target.value)}
+                        className="hub-input w-full rounded-xl px-3.5 py-2.5 text-sm"
+                      >
+                        <option value="">— Select lecturer —</option>
+                        {lecturers.map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.title ? `${l.title} ` : ''}
+                            {l.name}
+                          </option>
+                        ))}
+                      </select>
+                    </HubField>
+                    <HubField label="Semester">
+                      <select
+                        value={assignSemester}
+                        onChange={(e) => setAssignSemester(e.target.value as 'first' | 'second')}
+                        className="hub-input w-full rounded-xl px-3.5 py-2.5 text-sm"
+                      >
+                        <option value="first">First semester</option>
+                        <option value="second">Second semester</option>
+                      </select>
+                    </HubField>
+                    <button type="submit" className={hubBtnPrimary}>
+                      Add assignment
+                    </button>
+                  </form>
+                </>
+              )}
+            </div>
           )}
           {tab === 'create' && (
             <form onSubmit={createCourse} className="mt-6 max-w-lg space-y-4">

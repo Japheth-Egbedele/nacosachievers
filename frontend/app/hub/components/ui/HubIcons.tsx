@@ -1,10 +1,12 @@
 import {
+  Bell,
   ChevronLeft,
   ClipboardList,
   Home,
   Key,
   LogOut,
   Menu,
+  MessageSquare,
   Settings,
   User,
   Wallet,
@@ -53,4 +55,12 @@ export function IconWallet({ className = '' }: IconProps) {
 
 export function IconMenu({ className = '' }: IconProps) {
   return <Menu className={`${iconBase} ${className}`} strokeWidth={1.75} aria-hidden />;
+}
+
+export function IconBell({ className = '' }: IconProps) {
+  return <Bell className={`${iconBase} ${className}`} strokeWidth={1.75} aria-hidden />;
+}
+
+export function IconMessages({ className = '' }: IconProps) {
+  return <MessageSquare className={`${iconBase} ${className}`} strokeWidth={1.75} aria-hidden />;
 }

@@ -3,9 +3,11 @@
 import Link from 'next/link';
 import {
   IconAdmin,
+  IconBell,
   IconElections,
   IconKey,
   IconLogout,
+  IconMessages,
   IconUser,
   IconVault,
   IconWallet,
@@ -18,6 +20,8 @@ export const memberLinks = [
   { href: '/hub/elections', label: 'Elections', icon: IconElections },
   { href: '/hub/vault', label: 'Vault', icon: IconVault },
   { href: '/hub/wallet', label: 'Wallet', icon: IconWallet },
+  { href: '/hub/notifications', label: 'Notifications', icon: IconBell },
+  { href: '/hub/messages', label: 'Messages', icon: IconMessages },
   { href: '/hub/profile', label: 'Profile', icon: IconUser },
 ] as const;
 

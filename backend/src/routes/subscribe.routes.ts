@@ -5,12 +5,13 @@ import { authMiddleware } from '../middleware/auth.middleware.js';
 import { requireActiveUser } from '../middleware/require-active-user.js';
 import { requireAdminScope } from '../middleware/require-admin-scope.js';
 import { requireExecutive } from '../middleware/role-guard.js';
+import { subscribeRateLimiter } from '../middleware/rate-limiter.js';
 import { subscribeSchema } from '../schemas/cms.schema.js';
 import * as contactController from '../controllers/contact.controller.js';
 
 const router = Router();
 
-router.post('/', validate(subscribeSchema), catchAsync(contactController.subscribe));
+router.post('/', subscribeRateLimiter, validate(subscribeSchema), catchAsync(contactController.subscribe));
 
 export default router;
 

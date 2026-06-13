@@ -7,6 +7,7 @@ import HubAdminSearch from '@/app/hub/components/ui/HubAdminSearch';
 import HubAlert from '@/app/hub/components/ui/HubAlert';
 import HubPillTabs from '@/app/hub/components/ui/HubPillTabs';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
+import MemberDetailDrawer, { type MemberDetail } from '@/app/hub/components/admin/MemberDetailDrawer';
 import AdminStatTile from '@/app/hub/components/admin/AdminStatTile';
 import MemberScopeSelect from '@/app/hub/components/admin/MemberScopeSelect';
 import HubPagination from '@/app/hub/components/admin/HubPagination';
@@ -24,6 +25,7 @@ import {
   type MemberScope,
   type MemberStats,
 } from '@/lib/member-stats';
+import type { AdminScope } from '@/lib/executive-offices';
 
 const PAGE_LIMIT = 50;
 
@@ -41,6 +43,7 @@ interface Member {
   is_active: boolean;
   academic_status: string;
   can_issue_pins?: boolean;
+  admin_scopes?: AdminScope[];
 }
 
 function AdminMembersContent() {
@@ -66,6 +69,7 @@ function AdminMembersContent() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [drawerMember, setDrawerMember] = useState<MemberDetail | null>(null);
 
   const syncUrl = useCallback(
     (next: { scope?: MemberScope; level?: LevelFilter; page?: number; q?: string }) => {
@@ -261,7 +265,13 @@ function AdminMembersContent() {
               <tr key={m.id} className="border-t border-[var(--color-hub-border)]">
                 <td className="px-4 py-3 font-mono text-xs">{m.matric_number}</td>
                 <td className="px-4 py-3">
-                  {m.first_name} {m.last_name}
+                  <button
+                    type="button"
+                    onClick={() => setDrawerMember(m)}
+                    className="text-left hover:underline"
+                  >
+                    {m.first_name} {m.last_name}
+                  </button>
                   <div className="text-xs text-[var(--color-hub-text-secondary)]">{m.email}</div>
                 </td>
                 <td className="px-4 py-3">
@@ -344,6 +354,18 @@ function AdminMembersContent() {
         )}
         <HubPagination page={meta.page} limit={meta.limit} total={meta.total} onPageChange={changePage} />
       </div>
+
+      <MemberDetailDrawer
+        member={drawerMember}
+        open={drawerMember !== null}
+        busy={busyId === drawerMember?.id}
+        isSuperAdmin={isSuperAdmin}
+        onClose={() => setDrawerMember(null)}
+        onSave={(patch) => {
+          if (!drawerMember) return;
+          void patchMember(drawerMember.id, patch).then(() => setDrawerMember(null));
+        }}
+      />
     </div>
   );
 }

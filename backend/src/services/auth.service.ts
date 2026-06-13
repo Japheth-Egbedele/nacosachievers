@@ -401,16 +401,16 @@ export async function login(email: string, password: string): Promise<LoginResul
  * Creates and stores a refresh token.
  * @param userId User UUID
  */
-export async function createRefreshToken(userId: string): Promise<string> {
+export async function createRefreshToken(userId: string, familyId?: string): Promise<string> {
   const raw = generateSecureToken(48);
   const tokenHash = sha256(raw);
-  const familyId = uuidv4();
+  const family = familyId ?? uuidv4();
   const expiresAt = addDays(new Date(), REFRESH_TOKEN_EXPIRY_DAYS).toISOString();
 
   await getSupabase().from('refresh_tokens').insert({
     user_id: userId,
     token_hash: tokenHash,
-    family_id: familyId,
+    family_id: family,
     expires_at: expiresAt,
   });
 
@@ -430,11 +430,19 @@ export async function refreshSession(rawRefreshToken: string): Promise<LoginResu
     .eq('token_hash', tokenHash)
     .maybeSingle();
 
-  if (
-    !stored ||
-    stored.is_revoked ||
-    new Date(stored.expires_at) < new Date()
-  ) {
+  if (!stored) {
+    throw new AuthError(ERROR_MESSAGES.UNAUTHORIZED);
+  }
+
+  if (stored.is_revoked) {
+    await getSupabase()
+      .from('refresh_tokens')
+      .update({ is_revoked: true })
+      .eq('family_id', stored.family_id);
+    throw new AuthError(ERROR_MESSAGES.UNAUTHORIZED);
+  }
+
+  if (new Date(stored.expires_at) < new Date()) {
     throw new AuthError(ERROR_MESSAGES.UNAUTHORIZED);
   }
 
@@ -458,7 +466,7 @@ export async function refreshSession(rawRefreshToken: string): Promise<LoginResu
     user.role,
     Boolean(user.can_issue_pins),
   );
-  const refreshToken = await createRefreshToken(user.id);
+  const refreshToken = await createRefreshToken(user.id, stored.family_id);
 
   return {
     accessToken,

@@ -157,3 +157,39 @@ export const pinBulkRateLimiter = rateLimit({
   keyGenerator: (req) => req.user?.id ?? req.ip ?? 'anonymous',
   handler: jsonHandler,
 });
+
+export const refreshRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: clientIp,
+  handler: jsonHandler,
+});
+
+export const contactRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: clientIp,
+  handler: jsonHandler,
+});
+
+export const subscribeRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: clientIp,
+  handler: jsonHandler,
+});
+
+export const transferRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id ?? req.ip ?? 'anonymous',
+  handler: jsonHandler,
+});

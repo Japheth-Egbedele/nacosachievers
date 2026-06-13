@@ -27,7 +27,8 @@ function LoginForm() {
     setBusy(true);
     try {
       await login(email, password);
-      router.push('/hub/elections');
+      const next = params.get('next');
+      router.push(next && next.startsWith('/hub') ? next : '/hub/elections');
     } catch (err) {
       if (err instanceof ApiClientError && err.code === 'EMAIL_NOT_VERIFIED') {
         router.push(

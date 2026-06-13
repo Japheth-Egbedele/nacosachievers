@@ -1,3 +1,5 @@
+import { setHubSessionCookie } from './hub-session-cookie';
+
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? 'http://localhost:3000';
 
@@ -20,8 +22,13 @@ let accessToken: string | null = null;
 export function setAccessToken(token: string | null): void {
   accessToken = token;
   if (typeof window !== 'undefined') {
-    if (token) localStorage.setItem('nacos_access_token', token);
-    else localStorage.removeItem('nacos_access_token');
+    if (token) {
+      localStorage.setItem('nacos_access_token', token);
+      setHubSessionCookie(true);
+    } else {
+      localStorage.removeItem('nacos_access_token');
+      setHubSessionCookie(false);
+    }
   }
 }
 
@@ -29,6 +36,7 @@ export function loadStoredToken(): string | null {
   if (typeof window === 'undefined') return null;
   const t = localStorage.getItem('nacos_access_token');
   accessToken = t;
+  if (t) setHubSessionCookie(true);
   return t;
 }
 
