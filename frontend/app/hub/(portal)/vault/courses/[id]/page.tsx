@@ -9,6 +9,7 @@ import { HubList, HubListCard, HubListEmpty } from '@/app/hub/components/ui/HubL
 import HubPageHeader from '@/app/hub/components/ui/HubPageHeader';
 import { hubBtnSecondary, hubLink } from '@/lib/hub-styles';
 import { apiFetch, ApiClientError } from '@/lib/api';
+import { formatCourseUnits } from '@/lib/vault-format';
 
 interface VaultFile {
   id: string;
@@ -34,6 +35,7 @@ interface CourseDetail {
     course_name: string;
     level: string;
     semester?: string;
+    units?: number | null;
   };
   past_questions: VaultPacket[];
   course_materials: VaultPacket[];
@@ -85,7 +87,7 @@ export default function VaultCoursePage() {
       </Link>
       <HubPageHeader
         title={`${course.course_code} — ${course.course_name}`}
-        description={`Level ${course.level}${course.semester ? ` · Semester ${course.semester}` : ''}`}
+        description={`Level ${course.level}${course.semester ? ` · Semester ${course.semester}` : ''}${course.units != null ? ` · ${formatCourseUnits(course.units)}` : ''}`}
       />
       {error && <HubAlert variant="error" className="mb-4">{error}</HubAlert>}
 

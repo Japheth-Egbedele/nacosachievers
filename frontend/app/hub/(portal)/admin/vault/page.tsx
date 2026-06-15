@@ -9,6 +9,7 @@ import HubPillTabs from '@/app/hub/components/ui/HubPillTabs';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
 import { hubBtnPrimary, hubLink, hubBtnSecondary } from '@/lib/hub-styles';
 import { apiFetch, apiFetchPaginated, ApiClientError } from '@/lib/api';
+import { formatCourseUnits } from '@/lib/vault-format';
 import { getDepartments, type Department } from '@/lib/departments';
 
 interface PendingUpload {
@@ -33,6 +34,7 @@ interface Course {
   course_name: string;
   level: string;
   semester?: string;
+  units?: number | null;
 }
 
 interface VaultFlag {
@@ -89,6 +91,7 @@ export default function AdminVaultPage() {
   const [treasury, setTreasury] = useState<TreasurySummary | null>(null);
   const [courseCode, setCourseCode] = useState('');
   const [courseName, setCourseName] = useState('');
+  const [courseUnits, setCourseUnits] = useState('');
 
   const loadPending = () => {
     apiFetch<PendingUpload[]>('/vault/pending')
@@ -209,6 +212,7 @@ export default function AdminVaultPage() {
     }
     setCreateBusy(true);
     try {
+      const units = courseUnits.trim() ? parseInt(courseUnits, 10) : null;
       await apiFetch('/vault/courses', {
         method: 'POST',
         body: JSON.stringify({
@@ -217,6 +221,7 @@ export default function AdminVaultPage() {
           semester,
           course_code: courseCode.trim().toUpperCase(),
           course_name: courseName.trim(),
+          units: Number.isFinite(units) ? units : null,
         }),
       });
       setDepartmentId('');
@@ -224,6 +229,7 @@ export default function AdminVaultPage() {
       setSemester('');
       setCourseCode('');
       setCourseName('');
+      setCourseUnits('');
       setSuccess('Course created.');
       setTab('courses');
     } catch (err) {
@@ -347,7 +353,8 @@ export default function AdminVaultPage() {
                     <span className="text-[var(--color-hub-text)]">
                       {' '}
                       — {c.course_name} (L{c.level}
-                      {c.semester ? `, ${c.semester} sem` : ''})
+                      {c.semester ? `, sem ${c.semester}` : ''}
+                      {c.units != null ? `, ${formatCourseUnits(c.units)}` : ''})
                     </span>
                   </div>
                   <button
@@ -499,6 +506,16 @@ export default function AdminVaultPage() {
                   value={courseName}
                   onChange={(e) => setCourseName(e.target.value)}
                   placeholder="Data Structures"
+                />
+              </HubField>
+              <HubField label="Units" hint="Credit units (1–6). Optional.">
+                <HubTextInput
+                  type="number"
+                  min={1}
+                  max={6}
+                  value={courseUnits}
+                  onChange={(e) => setCourseUnits(e.target.value)}
+                  placeholder="e.g. 3"
                 />
               </HubField>
               <button type="submit" disabled={createBusy} className={hubBtnPrimary}>

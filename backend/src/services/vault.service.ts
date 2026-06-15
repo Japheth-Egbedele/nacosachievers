@@ -82,7 +82,7 @@ async function attachCourseCounts<T extends { id: string }>(courses: T[]) {
 export async function listCourses(query: Record<string, unknown>) {
   const { page, limit, offset } = parsePagination(query);
   let q = getSupabase().from('vault_courses').select(
-    'id, department_id, level, semester, course_code, course_name, created_at',
+    'id, department_id, level, semester, course_code, course_name, units, created_at',
     { count: 'exact' },
   );
 

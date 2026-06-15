@@ -42,3 +42,18 @@ export async function hashFile(file: Blob): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', buf);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
+
+/** e.g. "2 units" or empty when unknown */
+export function formatCourseUnits(units: number | null | undefined): string {
+  if (units == null) return '';
+  return `${units} unit${units === 1 ? '' : 's'}`;
+}
+
+export function formatCourseLabel(
+  code: string,
+  name: string,
+  units?: number | null,
+): string {
+  const suffix = units != null ? ` (${formatCourseUnits(units)})` : '';
+  return `${code} — ${name}${suffix}`;
+}

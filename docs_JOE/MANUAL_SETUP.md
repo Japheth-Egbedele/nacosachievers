@@ -247,6 +247,7 @@ create table vault_courses (
   semester semester_type not null,
   course_code text not null,
   course_name text not null,
+  units integer check (units is null or (units >= 1 and units <= 6)),
   created_by uuid references users(id),
   created_at timestamptz not null default now(),
   unique(department_id, course_code, level, semester)
@@ -330,6 +331,9 @@ alter table vault_uploads
 alter table vault_uploads alter column file_url drop not null;
 alter table vault_uploads alter column file_size_bytes drop not null;
 alter table vault_uploads alter column file_name drop not null;
+
+alter table vault_courses
+  add column if not exists units integer check (units is null or (units >= 1 and units <= 6));
 
 create table if not exists vault_upload_files (
   id uuid primary key default uuid_generate_v4(),
@@ -910,6 +914,8 @@ alter table vault_uploads
 alter table vault_uploads alter column file_url drop not null;
 alter table vault_uploads alter column file_size_bytes drop not null;
 alter table vault_uploads alter column file_name drop not null;
+alter table vault_courses
+  add column if not exists units integer check (units is null or (units >= 1 and units <= 6));
 ```
 
 ### 2.22.2 — Election abstentions and per-position votes

@@ -14,6 +14,8 @@ import { compressVaultImage } from '@/lib/vault-compress';
 import {
   acceptForKind,
   formatBytes,
+  formatCourseLabel,
+  formatCourseUnits,
   hashFile,
   maxBytesForKind,
   sizeWarningLevel,
@@ -28,6 +30,7 @@ interface Course {
   course_name: string;
   level: string;
   semester?: string;
+  units?: number | null;
   past_question_count?: number;
   course_material_count?: number;
 }
@@ -79,6 +82,19 @@ function titleFromFilename(name: string): string {
   return name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ');
 }
 
+function canRemoveFromQueue(status: QueueStatus): boolean {
+  return status === 'waiting' || status === 'failed';
+}
+
+function canWithdrawUpload(status: string): boolean {
+  return status === 'pending' || status === 'failed' || status === 'draft';
+}
+
+function formatUploadStatus(status: string): string {
+  if (status === 'pending') return 'Awaiting review';
+  return status.replace(/_/g, ' ');
+}
+
 export default function VaultPage() {
   const [tab, setTab] = useState<VaultTab>('browse');
   const [browseLevel, setBrowseLevel] = useState<string>('100');
@@ -98,6 +114,7 @@ export default function VaultPage() {
   >([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [uploadBusy, setUploadBusy] = useState(false);
+  const [withdrawBusy, setWithdrawBusy] = useState<string | null>(null);
 
   const galleryRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -212,6 +229,43 @@ export default function VaultPage() {
       });
     }
     setPqImages((prev) => [...prev, ...next]);
+  }
+
+  function removePqImage(key: string) {
+    setPqImages((prev) => {
+      const img = prev.find((p) => p.key === key);
+      if (img) URL.revokeObjectURL(img.preview);
+      return prev.filter((p) => p.key !== key);
+    });
+  }
+
+  function clearPqImages() {
+    pqImages.forEach((p) => URL.revokeObjectURL(p.preview));
+    setPqImages([]);
+  }
+
+  function removeQueueItem(key: string) {
+    setQueue((q) => q.filter((i) => i.key !== key));
+  }
+
+  function clearQueue() {
+    setQueue((q) => q.filter((i) => !canRemoveFromQueue(i.status)));
+  }
+
+  async function withdrawUpload(id: string, title: string) {
+    if (!confirm(`Withdraw "${title}"? This cannot be undone.`)) return;
+    setError('');
+    setSuccess('');
+    setWithdrawBusy(id);
+    try {
+      await apiFetch(`/vault/uploads/${id}`, { method: 'DELETE' });
+      setSuccess('Upload withdrawn.');
+      loadMyUploads();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Withdraw failed');
+    } finally {
+      setWithdrawBusy(null);
+    }
   }
 
   function addPastQuestionToQueue() {
@@ -367,6 +421,11 @@ export default function VaultPage() {
                       <div>
                         <span className="font-mono text-xs text-[var(--color-brand)]">{c.course_code}</span>
                         <span className="text-[var(--color-hub-text)]"> — {c.course_name}</span>
+                        {c.units != null && (
+                          <span className="ml-1 text-xs text-[var(--color-hub-text-secondary)]">
+                            · {formatCourseUnits(c.units)}
+                          </span>
+                        )}
                         <p className="mt-0.5 text-xs text-[var(--color-hub-text-secondary)]">
                           Level {c.level}
                           {c.semester ? ` · Semester ${c.semester}` : ''}
@@ -391,7 +450,7 @@ export default function VaultPage() {
                   <div>
                     <p className="font-medium">{u.title}</p>
                     <p className="text-xs capitalize text-[var(--color-hub-text-secondary)]">
-                      {u.upload_kind?.replace('_', ' ') ?? 'upload'} · {u.status}
+                      {u.upload_kind?.replace('_', ' ') ?? 'upload'} · {formatUploadStatus(u.status)}
                       {u.page_count && u.page_count > 1 ? ` · ${u.page_count} pages` : ''}
                       {u.rejection_reason ? ` — ${u.rejection_reason}` : ''}
                     </p>
@@ -399,11 +458,23 @@ export default function VaultPage() {
                       {new Date(u.created_at).toLocaleString()}
                     </p>
                   </div>
-                  {u.status === 'approved' && (
-                    <button type="button" onClick={() => downloadUpload(u.id)} className={hubLink}>
-                      Download
-                    </button>
-                  )}
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    {u.status === 'approved' && (
+                      <button type="button" onClick={() => downloadUpload(u.id)} className={hubLink}>
+                        Download
+                      </button>
+                    )}
+                    {canWithdrawUpload(u.status) && (
+                      <button
+                        type="button"
+                        disabled={withdrawBusy === u.id}
+                        onClick={() => void withdrawUpload(u.id, u.title)}
+                        className="text-sm font-medium text-red-600 hover:underline disabled:opacity-50"
+                      >
+                        {withdrawBusy === u.id ? 'Withdrawing…' : 'Withdraw'}
+                      </button>
+                    )}
+                  </div>
                 </HubListCard>
               ))}
             </HubList>
@@ -465,7 +536,7 @@ export default function VaultPage() {
                   <option value="">— Select course —</option>
                   {uploadCourses.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.course_code} — {c.course_name}
+                      {formatCourseLabel(c.course_code, c.course_name, c.units)}
                     </option>
                   ))}
                 </select>
@@ -520,9 +591,18 @@ export default function VaultPage() {
                   </div>
                   {pqImages.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-xs text-[var(--color-hub-text-secondary)]">
-                        {pqImages.length} page(s) — drag order with move buttons
-                      </p>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs text-[var(--color-hub-text-secondary)]">
+                          {pqImages.length} page(s) — reorder with ↑ before adding to queue
+                        </p>
+                        <button
+                          type="button"
+                          className="text-xs text-red-600 hover:underline"
+                          onClick={clearPqImages}
+                        >
+                          Clear all photos
+                        </button>
+                      </div>
                       <div className="flex flex-wrap gap-2">
                         {pqImages.map((img, idx) => (
                           <div key={img.key} className="relative w-24 rounded-lg border p-1 text-center text-[10px]">
@@ -549,11 +629,10 @@ export default function VaultPage() {
                               <button
                                 type="button"
                                 className="text-red-600"
-                                onClick={() =>
-                                  setPqImages((prev) => prev.filter((p) => p.key !== img.key))
-                                }
+                                title="Remove photo"
+                                onClick={() => removePqImage(img.key)}
                               >
-                                ×
+                                Remove
                               </button>
                             </div>
                           </div>
@@ -588,8 +667,13 @@ export default function VaultPage() {
                 <div className="space-y-3 rounded-xl border border-[var(--color-hub-border)] p-4">
                   <div className="flex items-center justify-between">
                     <h3 className="font-medium">Upload queue ({queue.length})</h3>
-                    <button type="button" className="text-xs text-red-600" onClick={() => setQueue([])}>
-                      Clear
+                    <button
+                      type="button"
+                      disabled={uploadBusy || !queue.some((i) => canRemoveFromQueue(i.status))}
+                      className="text-xs text-red-600 disabled:opacity-40"
+                      onClick={clearQueue}
+                    >
+                      Clear all
                     </button>
                   </div>
                   {limitCallout}
@@ -617,7 +701,15 @@ export default function VaultPage() {
                             >
                               Continue anyway
                             </button>{' '}
-                            or remove from queue.
+                            or{' '}
+                            <button
+                              type="button"
+                              className="underline"
+                              onClick={() => removeQueueItem(item.key)}
+                            >
+                              remove from queue
+                            </button>
+                            .
                           </HubAlert>
                         )}
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -644,6 +736,16 @@ export default function VaultPage() {
                             {level === 'over' && ' — too large, compress first'}
                           </span>
                           <span className="capitalize text-xs">{item.status}</span>
+                          {canRemoveFromQueue(item.status) && (
+                            <button
+                              type="button"
+                              disabled={uploadBusy && item.status === 'uploading'}
+                              className="text-xs font-medium text-red-600 hover:underline disabled:opacity-40"
+                              onClick={() => removeQueueItem(item.key)}
+                            >
+                              Remove
+                            </button>
+                          )}
                         </div>
                         {item.status === 'uploading' && (
                           <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-200">

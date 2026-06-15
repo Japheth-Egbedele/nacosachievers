@@ -325,6 +325,8 @@ Use backend string values exactly in API calls.
 - **Upload wizard:** Pick level → kind (past questions vs materials) → course → add files → batch queue with per-file progress. Materials: PDF/DOC/DOCX up to 45 MB each (show compress tip). Past questions: multi-image with client compression or single PDF.
 - **Mobile:** Separate Gallery and Take photo buttons (Samsung-friendly).
 - **Credits:** Show default reward + “reach out to excos” copy; actual payout on admin approve from chapter treasury.
+- **Cancel before submit:** Remove individual items from the upload queue (waiting/failed) or clear all; past-question photos can be removed one-by-one or cleared before adding to queue.
+- **Withdraw after submit:** Members can withdraw uploads **awaiting review** (`pending`), failed, or draft via `DELETE /vault/uploads/:id` (My uploads → Withdraw).
 - Course detail page: show lecturers for **current session** with employment/teaching badges; list materials and past questions separately.
 
 ---
