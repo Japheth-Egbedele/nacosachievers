@@ -26,5 +26,7 @@ router.get(
   catchAsync(adminWalletController.listTransactions),
 );
 router.post('/credit', validate(bulkCreditSchema), catchAsync(adminWalletController.bulkCredit));
+router.get('/treasury', catchAsync(adminWalletController.getTreasury));
+router.post('/treasury/fund', catchAsync(adminWalletController.fundTreasury));
 
 export default router;

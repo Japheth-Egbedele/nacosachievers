@@ -21,7 +21,14 @@ export const DEFAULT_PAGE = 1;
 export const DEFAULT_LIMIT = 20;
 export const MAX_LIMIT = 100;
 
-export const VAULT_MAX_FILE_BYTES = 10 * 1024 * 1024;
+/** @deprecated Use vault_max_material_bytes from site_settings */
+export const VAULT_MAX_FILE_BYTES = 45 * 1024 * 1024;
+export const VAULT_DEFAULT_MATERIAL_BYTES = 45 * 1024 * 1024;
+export const VAULT_DEFAULT_IMAGE_BYTES = 8 * 1024 * 1024;
+export const VAULT_DEFAULT_BATCH_QUEUE_MAX = 20;
+export const VAULT_DRAFT_EXPIRY_HOURS = 24;
+export const SUPABASE_FREE_TIER_STORAGE_BYTES = 1024 * 1024 * 1024;
 export const IMAGE_MAX_FILE_BYTES = 5 * 1024 * 1024;
+export const TREASURY_MATRIC = 'CHAPTER-TREASURY';
 
 export const SIGNED_URL_EXPIRY_SECONDS = 3600;

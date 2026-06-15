@@ -185,14 +185,25 @@ Legend: **Public** = no Bearer token · **Auth** = member+ · **Admin** = execut
 
 | Method | Path | Access | Notes |
 |--------|------|--------|-------|
-| GET | `/vault/courses` | Auth | Filters: department, level, semester, search |
-| GET | `/vault/courses/:id` | Auth | Lecturers + uploads by `upload_kind` |
-| POST | `/vault/uploads` | Auth | PDF multipart; optional `upload_kind`: `past_question` \| `course_material` |
+| GET | `/vault/upload-limits` | Auth | `max_material_bytes` (45 MB), `max_image_bytes` (8 MB), `batch_queue_max`, `default_credit_reward` |
+| GET | `/vault/uploads/duplicate-check` | Auth | Query: `course_id`, `upload_kind`, `file_name`, optional `content_hash` |
+| GET | `/vault/courses` | Auth | Filters: department, level, semester, search; includes per-kind counts |
+| GET | `/vault/courses/:id` | Auth | Lecturers + `past_questions[]` + `course_materials[]` |
+| POST | `/vault/uploads/init` | Auth | Direct-to-storage draft; body: course, title, kind, files meta |
+| POST | `/vault/uploads/:id/complete` | Auth | Validates blobs → `pending` review |
+| POST | `/vault/uploads` | Auth | Legacy PDF multipart (prefer init/complete) |
 | GET | `/vault/uploads` | Auth | Approved only; filter incl. `upload_kind` |
 | GET | `/vault/uploads/mine` | Auth | |
-| GET | `/vault/uploads/:id/download` | Auth | Signed URL ~1hr |
-| DELETE | `/vault/uploads/:id` | Auth | Owner or admin |
+| GET | `/vault/uploads/:id/files` | Auth | Signed URLs for gallery (multi-image past questions) |
+| GET | `/vault/uploads/:id/download` | Auth | Signed URL ~1hr; optional `?file_id=` |
+| DELETE | `/vault/uploads/:id` | Auth | Owner or admin; deletes storage blobs |
 | POST | `/vault/uploads/:id/flag` | Auth | |
+| GET | `/vault/treasury-summary` | Executive + vault scope | Balance + default reward for approve modal |
+| PATCH | `/vault/uploads/:id/review` | Executive + vault | Body: `status`, optional `credit_amount` (treasury payout) |
+
+**Archive policy:** Keep **active semester** materials on-platform. Older multi-semester archives belong offline (chapter drive) unless Supabase storage is upgraded (Pro ~100 GB). Members should compress large PDFs before upload; past-question photos are auto-compressed client-side.
+
+**Admin storage:** `GET /admin/storage/usage` (super_admin) — % of 1 GB free-tier quota; alert at 80%+.
 
 ### Wallet
 
@@ -310,7 +321,10 @@ Use backend string values exactly in API calls.
 - Bounty credits optional — controlled by site setting `career_submission_bounty_credits` (0 = disabled).
 
 ### Vault
-- Upload form: let user pick **Past questions** vs **Course materials** (`upload_kind`).
+- **Browse:** Level tabs (L100–L400) → course list with counts → course detail with past questions (gallery) and materials (download).
+- **Upload wizard:** Pick level → kind (past questions vs materials) → course → add files → batch queue with per-file progress. Materials: PDF/DOC/DOCX up to 45 MB each (show compress tip). Past questions: multi-image with client compression or single PDF.
+- **Mobile:** Separate Gallery and Take photo buttons (Samsung-friendly).
+- **Credits:** Show default reward + “reach out to excos” copy; actual payout on admin approve from chapter treasury.
 - Course detail page: show lecturers for **current session** with employment/teaching badges; list materials and past questions separately.
 
 ---

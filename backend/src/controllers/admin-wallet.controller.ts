@@ -26,3 +26,24 @@ export async function bulkCredit(req: Request, res: Response): Promise<void> {
   });
   sendSuccess(res, result, HTTP_STATUS.OK, 'Credits applied');
 }
+
+/**
+ * GET /admin/wallet/treasury
+ */
+export async function getTreasury(_req: Request, res: Response): Promise<void> {
+  const data = await walletService.getTreasurySummary();
+  sendSuccess(res, data);
+}
+
+/**
+ * POST /admin/wallet/treasury/fund
+ */
+export async function fundTreasury(req: Request, res: Response): Promise<void> {
+  const body = req.body as { amount: number; remark: string };
+  const data = await walletService.fundTreasury({
+    actorId: req.user!.id,
+    amount: body.amount,
+    remark: body.remark,
+  });
+  sendSuccess(res, data, HTTP_STATUS.OK, 'Treasury funded');
+}

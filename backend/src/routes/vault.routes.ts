@@ -12,6 +12,9 @@ import * as vaultController from '../controllers/vault.controller.js';
 const router = Router();
 const vaultScope = requireAdminScope('vault');
 
+router.get('/upload-limits', authMiddleware, catchAsync(requireActiveUser), requireMemberPortal, catchAsync(vaultController.getUploadLimits));
+router.get('/uploads/duplicate-check', authMiddleware, catchAsync(requireActiveUser), requireMemberPortal, catchAsync(vaultController.checkDuplicate));
+
 router.get('/courses', authMiddleware, catchAsync(requireActiveUser), requireMemberPortal, catchAsync(vaultController.listCourses));
 router.get('/courses/:id', authMiddleware, catchAsync(requireActiveUser), requireMemberPortal, catchAsync(vaultController.getCourse));
 
@@ -41,6 +44,21 @@ router.delete(
 );
 
 router.post(
+  '/uploads/init',
+  authMiddleware,
+  catchAsync(requireActiveUser),
+  requireMemberPortal,
+  uploadRateLimiter,
+  catchAsync(vaultController.initUpload),
+);
+router.post(
+  '/uploads/:id/complete',
+  authMiddleware,
+  catchAsync(requireActiveUser),
+  requireMemberPortal,
+  catchAsync(vaultController.completeUpload),
+);
+router.post(
   '/uploads',
   authMiddleware,
   catchAsync(requireActiveUser),
@@ -51,10 +69,12 @@ router.post(
 );
 router.get('/uploads', authMiddleware, catchAsync(requireActiveUser), requireMemberPortal, catchAsync(vaultController.listUploads));
 router.get('/uploads/mine', authMiddleware, catchAsync(requireActiveUser), requireMemberPortal, catchAsync(vaultController.listMyUploads));
+router.get('/uploads/:id/files', authMiddleware, catchAsync(requireActiveUser), requireMemberPortal, catchAsync(vaultController.listUploadFiles));
 router.get('/uploads/:id/download', authMiddleware, catchAsync(requireActiveUser), requireMemberPortal, catchAsync(vaultController.downloadUpload));
 router.delete('/uploads/:id', authMiddleware, catchAsync(requireActiveUser), requireMemberPortal, catchAsync(vaultController.deleteUpload));
 
 router.get('/pending', authMiddleware, catchAsync(requireActiveUser), requireExecutive, vaultScope, catchAsync(vaultController.listPending));
+router.get('/treasury-summary', authMiddleware, catchAsync(requireActiveUser), requireExecutive, vaultScope, catchAsync(vaultController.getTreasurySummary));
 router.patch(
   '/uploads/:id/review',
   authMiddleware,

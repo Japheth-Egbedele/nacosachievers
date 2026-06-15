@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { HTTP_STATUS } from '../constants/http.js';
 import { sendPaginated, sendSuccess } from '../utils/response.js';
 import * as vaultService from '../services/vault.service.js';
+import * as walletService from '../services/wallet.service.js';
 import type { UploadKind } from '../constants/enums.js';
 
 export async function listCourses(req: Request, res: Response): Promise<void> {
@@ -28,6 +29,56 @@ export async function updateCourse(req: Request, res: Response): Promise<void> {
 export async function deleteCourse(req: Request, res: Response): Promise<void> {
   await vaultService.deleteCourse(req.params.id!);
   sendSuccess(res, null, HTTP_STATUS.OK, 'Course deleted');
+}
+
+export async function getUploadLimits(_req: Request, res: Response): Promise<void> {
+  const data = await vaultService.getUploadLimits();
+  sendSuccess(res, data);
+}
+
+export async function checkDuplicate(req: Request, res: Response): Promise<void> {
+  const q = req.query as {
+    course_id?: string;
+    upload_kind?: UploadKind;
+    file_name?: string;
+    content_hash?: string;
+  };
+  const data = await vaultService.checkDuplicate({
+    courseId: q.course_id!,
+    uploadKind: q.upload_kind!,
+    fileName: q.file_name,
+    contentHash: q.content_hash,
+  });
+  sendSuccess(res, data);
+}
+
+export async function initUpload(req: Request, res: Response): Promise<void> {
+  const body = req.body as {
+    course_id: string;
+    title: string;
+    description?: string;
+    upload_kind: UploadKind;
+    content_hash?: string;
+    files: { file_name: string; content_mime: string; file_size_bytes: number }[];
+  };
+  const data = await vaultService.initUpload({
+    uploaderId: req.user!.id,
+    courseId: body.course_id,
+    title: body.title,
+    description: body.description,
+    uploadKind: body.upload_kind,
+    contentHash: body.content_hash,
+    files: body.files,
+  });
+  sendSuccess(res, data, HTTP_STATUS.CREATED);
+}
+
+export async function completeUpload(req: Request, res: Response): Promise<void> {
+  const data = await vaultService.completeUpload({
+    uploadId: req.params.id!,
+    uploaderId: req.user!.id,
+  });
+  sendSuccess(res, data);
 }
 
 export async function uploadFile(req: Request, res: Response): Promise<void> {
@@ -65,7 +116,13 @@ export async function listMyUploads(req: Request, res: Response): Promise<void> 
 }
 
 export async function downloadUpload(req: Request, res: Response): Promise<void> {
-  const data = await vaultService.getDownloadUrl(req.params.id!);
+  const fileId = req.query.file_id as string | undefined;
+  const data = await vaultService.getDownloadUrl(req.params.id!, fileId);
+  sendSuccess(res, data);
+}
+
+export async function listUploadFiles(req: Request, res: Response): Promise<void> {
+  const data = await vaultService.getUploadFilesSigned(req.params.id!);
   sendSuccess(res, data);
 }
 
@@ -73,6 +130,11 @@ export async function deleteUpload(req: Request, res: Response): Promise<void> {
   const isAdmin = ['executive', 'super_admin'].includes(req.user!.role);
   await vaultService.deleteUpload(req.params.id!, req.user!.id, isAdmin);
   sendSuccess(res, null, HTTP_STATUS.OK, 'Upload deleted');
+}
+
+export async function getTreasurySummary(_req: Request, res: Response): Promise<void> {
+  const data = await walletService.getTreasurySummary();
+  sendSuccess(res, data);
 }
 
 export async function listPending(_req: Request, res: Response): Promise<void> {
@@ -84,12 +146,14 @@ export async function reviewUpload(req: Request, res: Response): Promise<void> {
   const body = req.body as {
     status: 'approved' | 'rejected';
     rejection_reason?: string;
+    credit_amount?: number;
   };
   await vaultService.reviewUpload({
     uploadId: req.params.id!,
     reviewerId: req.user!.id,
     status: body.status,
     rejectionReason: body.rejection_reason,
+    creditAmount: body.credit_amount,
   });
   sendSuccess(res, null, HTTP_STATUS.OK);
 }

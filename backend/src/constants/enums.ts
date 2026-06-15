@@ -19,7 +19,7 @@ export const ACADEMIC_STATUSES = [
 ] as const;
 export type AcademicStatus = (typeof ACADEMIC_STATUSES)[number];
 
-export const UPLOAD_STATUSES = ['pending', 'approved', 'rejected'] as const;
+export const UPLOAD_STATUSES = ['draft', 'pending', 'approved', 'rejected', 'failed'] as const;
 export type UploadStatus = (typeof UPLOAD_STATUSES)[number];
 
 export const UPLOAD_KINDS = ['past_question', 'course_material'] as const;

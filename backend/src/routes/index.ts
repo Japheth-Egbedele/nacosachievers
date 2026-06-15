@@ -8,6 +8,7 @@ import adminLecturersRoutes from './admin-lecturers.routes.js';
 import adminVaultAssignmentsRoutes from './admin-vault-assignments.routes.js';
 import walletRoutes from './wallet.routes.js';
 import adminWalletRoutes from './admin-wallet.routes.js';
+import adminStorageRoutes from './admin-storage.routes.js';
 import marketplaceRoutes from './marketplace.routes.js';
 import adminMarketplaceRoutes from './admin-marketplace.routes.js';
 import eventsRoutes from './events.routes.js';
@@ -46,6 +47,7 @@ apiRouter.use('/admin/vault', adminVaultAssignmentsRoutes);
 
 apiRouter.use('/wallet', walletRoutes);
 apiRouter.use('/admin/wallet', adminWalletRoutes);
+apiRouter.use('/admin/storage', adminStorageRoutes);
 
 apiRouter.use('/marketplace', marketplaceRoutes);
 apiRouter.use('/admin/marketplace', adminMarketplaceRoutes);

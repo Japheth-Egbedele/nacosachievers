@@ -8,6 +8,7 @@ import HubAlert from '@/app/hub/components/ui/HubAlert';
 import HubPillTabs from '@/app/hub/components/ui/HubPillTabs';
 import { hubBtnPrimary, hubBtnSecondary } from '@/lib/hub-styles';
 import { apiFetchPaginated, apiFetch, ApiClientError } from '@/lib/api';
+import { formatBytes } from '@/lib/vault-format';
 
 interface Tx {
   id: string;
@@ -15,6 +16,19 @@ interface Tx {
   type: string;
   remark: string;
   created_at: string;
+}
+
+interface TreasurySummary {
+  balance: number;
+  default_vault_reward: number;
+  total_issued_upload_rewards: number;
+}
+
+interface StorageUsage {
+  total_bytes: number;
+  quota_bytes: number;
+  percent_used: number;
+  buckets: { bucket: string; bytes: number; object_count: number }[];
 }
 
 type CreditRow = {
@@ -38,11 +52,21 @@ export default function AdminWalletPage() {
   const [bulkRows, setBulkRows] = useState<CreditRow[]>([emptyRow(), emptyRow(), emptyRow()]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [treasury, setTreasury] = useState<TreasurySummary | null>(null);
+  const [storage, setStorage] = useState<StorageUsage | null>(null);
+  const [fundAmount, setFundAmount] = useState('');
+  const [fundRemark, setFundRemark] = useState('Chapter budget allocation');
 
   const load = () => {
     apiFetchPaginated<Tx>('/admin/wallet/transactions?limit=30')
       .then((r) => setTxs(r.items))
       .catch(() => setTxs([]));
+    apiFetch<TreasurySummary>('/admin/wallet/treasury')
+      .then(setTreasury)
+      .catch(() => setTreasury(null));
+    apiFetch<StorageUsage>('/admin/storage/usage')
+      .then(setStorage)
+      .catch(() => setStorage(null));
   };
 
   useEffect(() => {
@@ -113,10 +137,90 @@ export default function AdminWalletPage() {
     }
   }
 
+  async function fundTreasury(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    const amt = parseInt(fundAmount, 10);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      setError('Enter a positive amount');
+      return;
+    }
+    setBusy(true);
+    try {
+      await apiFetch('/admin/wallet/treasury/fund', {
+        method: 'POST',
+        body: JSON.stringify({ amount: amt, remark: fundRemark.trim() }),
+      });
+      setFundAmount('');
+      load();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Fund treasury failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div>
-      <AdminPageHeader title="Wallet" description="Credit members individually or in bulk (up to 100)." />
+      <AdminPageHeader title="Wallet" description="Credit members, fund chapter treasury, and monitor storage." />
       {error && <HubAlert variant="error" className="mb-4">{error}</HubAlert>}
+
+      <div className="mb-8 grid gap-4 md:grid-cols-2">
+        {treasury && (
+          <div className="rounded-xl border border-[var(--color-hub-border)] p-4">
+            <h3 className="font-semibold">Chapter treasury</h3>
+            <p className="mt-2 text-2xl font-bold">{treasury.balance} credits</p>
+            <p className="text-xs text-[var(--color-hub-text-secondary)]">
+              Default vault reward: {treasury.default_vault_reward} · Total issued (upload rewards):{' '}
+              {treasury.total_issued_upload_rewards}
+            </p>
+            <form onSubmit={fundTreasury} className="mt-4 space-y-2">
+              <HubTextInput
+                type="number"
+                min={1}
+                placeholder="Amount to fund"
+                value={fundAmount}
+                onChange={(e) => setFundAmount(e.target.value)}
+              />
+              <HubTextInput value={fundRemark} onChange={(e) => setFundRemark(e.target.value)} placeholder="Remark" />
+              <button type="submit" disabled={busy} className={hubBtnSecondary}>
+                Fund treasury
+              </button>
+            </form>
+          </div>
+        )}
+        {storage && (
+          <div className="rounded-xl border border-[var(--color-hub-border)] p-4">
+            <h3 className="font-semibold">Storage usage</h3>
+            <p className="mt-2 text-sm">
+              {formatBytes(storage.total_bytes)} / {formatBytes(storage.quota_bytes)} ({storage.percent_used}%)
+            </p>
+            <div className="mt-2 h-3 overflow-hidden rounded-full bg-zinc-200">
+              <div
+                className={`h-full ${storage.percent_used >= 95 ? 'bg-red-600' : storage.percent_used >= 80 ? 'bg-amber-500' : 'bg-[var(--color-brand)]'}`}
+                style={{ width: `${Math.min(100, storage.percent_used)}%` }}
+              />
+            </div>
+            {storage.percent_used >= 80 && (
+              <HubAlert
+                variant="info"
+                className={`mt-3 text-xs ${storage.percent_used >= 95 ? 'border-red-200 bg-red-50 text-red-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}
+              >
+                {storage.percent_used >= 95
+                  ? 'Storage nearly full — uploads may fail soon. Review vault files or upgrade Supabase plan.'
+                  : 'Storage nearly full — review vault uploads or plan Supabase Pro upgrade.'}
+              </HubAlert>
+            )}
+            <ul className="mt-3 space-y-1 text-xs text-[var(--color-hub-text-secondary)]">
+              {storage.buckets.map((b) => (
+                <li key={b.bucket}>
+                  {b.bucket}: {formatBytes(b.bytes)} ({b.object_count} objects)
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
 
       <HubPillTabs
         tabs={[

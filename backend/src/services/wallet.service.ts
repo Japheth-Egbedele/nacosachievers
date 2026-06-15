@@ -1,5 +1,6 @@
 import { getSupabase } from '../config/supabase.js';
 import type { TransactionType } from '../constants/enums.js';
+import { TREASURY_MATRIC } from '../constants/auth.js';
 import { ValidationError } from '../utils/errors.js';
 import { parsePagination, buildMeta } from '../utils/pagination.js';
 import type { PaginationMeta } from '../utils/response.js';
@@ -333,4 +334,121 @@ export async function bulkCredit(input: {
   }
 
   return { credited: input.credits.length };
+}
+
+let treasuryUserIdCache: string | null = null;
+
+/**
+ * Resolves the chapter treasury system user id.
+ */
+export async function getTreasuryUserId(): Promise<string> {
+  if (treasuryUserIdCache) return treasuryUserIdCache;
+  const { data } = await getSupabase()
+    .from('users')
+    .select('id')
+    .eq('matric_number', TREASURY_MATRIC)
+    .maybeSingle();
+  if (!data?.id) {
+    throw new ValidationError('Chapter treasury account not configured. Run MANUAL_SETUP §2.9.1.');
+  }
+  treasuryUserIdCache = data.id;
+  return data.id;
+}
+
+/**
+ * Treasury balance and default vault reward for admin dashboard.
+ */
+export async function getTreasurySummary(): Promise<{
+  balance: number;
+  default_vault_reward: number;
+  total_issued_upload_rewards: number;
+}> {
+  const treasuryId = await getTreasuryUserId();
+  const { data: user } = await getSupabase()
+    .from('users')
+    .select('wallet_balance')
+    .eq('id', treasuryId)
+    .single();
+
+  const defaultReward = await settingsService.getSettingNumber('vault_upload_credit_reward', 10);
+
+  const { data: issued } = await getSupabase()
+    .from('wallet_transactions')
+    .select('amount')
+    .eq('type', 'upload_reward');
+
+  const totalIssued = (issued ?? []).reduce((sum, row) => sum + row.amount, 0);
+
+  return {
+    balance: user?.wallet_balance ?? 0,
+    default_vault_reward: defaultReward,
+    total_issued_upload_rewards: totalIssued,
+  };
+}
+
+/**
+ * Super admin funds the chapter treasury (off-platform budget approval).
+ */
+export async function fundTreasury(input: {
+  actorId: string;
+  amount: number;
+  remark: string;
+}): Promise<{ balance: number }> {
+  if (input.remark.length < 3) {
+    throw new ValidationError('Remark must be at least 3 characters');
+  }
+  const treasuryId = await getTreasuryUserId();
+  await creditUser({
+    userId: treasuryId,
+    amount: input.amount,
+    type: 'credit',
+    remark: input.remark,
+    actorId: input.actorId,
+  });
+  const { balance } = await getBalance(treasuryId);
+  return { balance };
+}
+
+/**
+ * Pays upload reward from treasury to member (atomic pair of ledger entries).
+ */
+export async function treasuryPayout(input: {
+  memberId: string;
+  amount: number;
+  remark: string;
+  referenceId: string;
+  actorId: string;
+}): Promise<void> {
+  if (input.amount <= 0) return;
+
+  const treasuryId = await getTreasuryUserId();
+  const { data: treasury } = await getSupabase()
+    .from('users')
+    .select('wallet_balance')
+    .eq('id', treasuryId)
+    .maybeSingle();
+
+  if (!treasury || treasury.wallet_balance < input.amount) {
+    throw new ValidationError(
+      'Insufficient treasury balance. Fund treasury in Admin → Wallet before approving with credits.',
+    );
+  }
+
+  await debitUser({
+    userId: treasuryId,
+    amount: input.amount,
+    type: 'transfer_out',
+    remark: `Treasury payout: ${input.remark}`,
+    referenceId: input.referenceId,
+    actorId: input.actorId,
+  });
+
+  await creditUser({
+    userId: input.memberId,
+    amount: input.amount,
+    type: 'upload_reward',
+    remark: input.remark,
+    referenceId: input.referenceId,
+    actorId: input.actorId,
+  });
 }

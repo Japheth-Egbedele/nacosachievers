@@ -314,6 +314,65 @@ create table course_teaching_assignments (
 );
 ```
 
+#### 2.9.1 — Vault packets, files, treasury (existing deployments)
+
+Run in **Supabase → SQL Editor** after §2.9:
+
+```sql
+-- Draft/failed upload lifecycle for direct-to-storage flow
+alter type upload_status add value if not exists 'draft';
+alter type upload_status add value if not exists 'failed';
+
+alter table vault_uploads
+  add column if not exists credits_awarded_amount integer,
+  add column if not exists content_hash text;
+
+alter table vault_uploads alter column file_url drop not null;
+alter table vault_uploads alter column file_size_bytes drop not null;
+alter table vault_uploads alter column file_name drop not null;
+
+create table if not exists vault_upload_files (
+  id uuid primary key default uuid_generate_v4(),
+  upload_id uuid not null references vault_uploads(id) on delete cascade,
+  file_url text not null,
+  file_name text not null,
+  file_size_bytes integer not null,
+  content_mime text not null,
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_vault_upload_files_upload on vault_upload_files(upload_id);
+
+-- Backfill single-file legacy rows into vault_upload_files
+insert into vault_upload_files (upload_id, file_url, file_name, file_size_bytes, content_mime, sort_order)
+select id, file_url, file_name, file_size_bytes, 'application/pdf', 0
+from vault_uploads
+where file_url is not null
+  and not exists (select 1 from vault_upload_files f where f.upload_id = vault_uploads.id);
+
+-- Chapter treasury (system wallet; not a login account)
+insert into users (
+  matric_number, email, password_hash, role,
+  first_name, last_name, display_name, is_email_verified, academic_status, is_active
+) values (
+  'CHAPTER-TREASURY',
+  'treasury@system.nacosachievers.internal',
+  '$2b$12$INVALIDSYSTEMACCOUNTNOLOGINHASHPLACEHOLDER000000000000000000',
+  'super_admin',
+  'Chapter', 'Treasury', 'Chapter Treasury',
+  false, 'active', false
+) on conflict (matric_number) do nothing;
+
+insert into site_settings (key, value) values
+  ('vault_max_material_bytes', '47185920'),
+  ('vault_max_image_bytes', '8388608'),
+  ('vault_batch_queue_max', '20')
+on conflict (key) do nothing;
+```
+
+**Storage note:** Supabase free tier shares **1 GB** across all buckets (`vault-documents`, `public-images`, yearbook). Rejected and deleted uploads should remove storage objects (API handles cleanup). Prefer active-semester materials on-platform; archive older semesters offline or upgrade to Supabase Pro (~100 GB).
+
 ### 2.10 — Wallet
 ```sql
 create table wallet_transactions (
@@ -841,6 +900,16 @@ create table if not exists audit_logs (
 
 create index if not exists idx_audit_logs_created on audit_logs(created_at desc);
 create index if not exists idx_audit_logs_action on audit_logs(action, created_at desc);
+
+-- Vault packets + treasury (see also §2.9.1)
+alter type upload_status add value if not exists 'draft';
+alter type upload_status add value if not exists 'failed';
+alter table vault_uploads
+  add column if not exists credits_awarded_amount integer,
+  add column if not exists content_hash text;
+alter table vault_uploads alter column file_url drop not null;
+alter table vault_uploads alter column file_size_bytes drop not null;
+alter table vault_uploads alter column file_name drop not null;
 ```
 
 ### 2.22.2 — Election abstentions and per-position votes

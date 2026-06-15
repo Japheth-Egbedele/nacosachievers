@@ -7,7 +7,7 @@ import HubField, { HubTextInput } from '@/app/hub/components/ui/HubField';
 import { HubList, HubListCard, HubListEmpty } from '@/app/hub/components/ui/HubListCard';
 import HubPillTabs from '@/app/hub/components/ui/HubPillTabs';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
-import { hubBtnPrimary, hubLink } from '@/lib/hub-styles';
+import { hubBtnPrimary, hubLink, hubBtnSecondary } from '@/lib/hub-styles';
 import { apiFetch, apiFetchPaginated, ApiClientError } from '@/lib/api';
 import { getDepartments, type Department } from '@/lib/departments';
 
@@ -15,8 +15,16 @@ interface PendingUpload {
   id: string;
   title: string;
   status: string;
+  upload_kind?: string;
+  page_count?: number;
   created_at: string;
   users?: { matric_number?: string; display_name?: string };
+}
+
+interface TreasurySummary {
+  balance: number;
+  default_vault_reward: number;
+  total_issued_upload_rewards: number;
 }
 
 interface Course {
@@ -66,7 +74,7 @@ export default function AdminVaultPage() {
   const [assignCourseId, setAssignCourseId] = useState('');
   const [assignments, setAssignments] = useState<TeachingAssignment[]>([]);
   const [assignLecturerId, setAssignLecturerId] = useState('');
-  const [assignSemester, setAssignSemester] = useState<'first' | 'second'>('first');
+  const [assignSemester, setAssignSemester] = useState<'1' | '2'>('1');
   const [departments, setDepartments] = useState<Department[]>([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -75,7 +83,10 @@ export default function AdminVaultPage() {
 
   const [departmentId, setDepartmentId] = useState('');
   const [level, setLevel] = useState('');
-  const [semester, setSemester] = useState<'first' | 'second' | ''>('');
+  const [semester, setSemester] = useState<'1' | '2' | ''>('');
+  const [approveTarget, setApproveTarget] = useState<PendingUpload | null>(null);
+  const [creditAmount, setCreditAmount] = useState('');
+  const [treasury, setTreasury] = useState<TreasurySummary | null>(null);
   const [courseCode, setCourseCode] = useState('');
   const [courseName, setCourseName] = useState('');
 
@@ -84,6 +95,9 @@ export default function AdminVaultPage() {
       .then(setPending)
       .catch(() => setPending([]))
       .finally(() => setLoading(false));
+    apiFetch<TreasurySummary>('/vault/treasury-summary')
+      .then(setTreasury)
+      .catch(() => setTreasury(null));
   };
 
   const loadCourses = () => {
@@ -142,17 +156,26 @@ export default function AdminVaultPage() {
     if (tab === 'assignments' && assignCourseId) loadAssignments(assignCourseId);
   }, [tab, assignCourseId]);
 
-  async function review(id: string, status: 'approved' | 'rejected') {
+  async function review(id: string, status: 'approved' | 'rejected', amount?: number) {
     setError('');
     try {
       await apiFetch(`/vault/uploads/${id}/review`, {
         method: 'PATCH',
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({
+          status,
+          credit_amount: status === 'approved' ? amount : undefined,
+        }),
       });
+      setApproveTarget(null);
       loadPending();
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Review failed');
     }
+  }
+
+  function openApprove(u: PendingUpload) {
+    setApproveTarget(u);
+    setCreditAmount(String(treasury?.default_vault_reward ?? 10));
   }
 
   async function resolveFlag(id: string) {
@@ -254,11 +277,13 @@ export default function AdminVaultPage() {
                   <div>
                     <p className="font-medium">{u.title}</p>
                     <p className="text-xs text-[var(--color-hub-text-secondary)]">
-                      {u.users?.display_name ?? u.users?.matric_number ?? 'Member'} · {u.status}
+                      {u.users?.display_name ?? u.users?.matric_number ?? 'Member'} ·{' '}
+                      {u.upload_kind?.replace('_', ' ') ?? 'upload'}
+                      {u.page_count && u.page_count > 1 ? ` · ${u.page_count} pages` : ''}
                     </p>
                   </div>
                   <div className="flex gap-3">
-                    <button type="button" onClick={() => review(u.id, 'approved')} className={hubLink}>
+                    <button type="button" onClick={() => openApprove(u)} className={hubLink}>
                       Approve
                     </button>
                     <button
@@ -271,6 +296,46 @@ export default function AdminVaultPage() {
                   </div>
                 </HubListCard>
               ))}
+              {approveTarget && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                  <form
+                    className="w-full max-w-md space-y-4 rounded-xl bg-white p-6 shadow-lg dark:bg-zinc-900"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const amt = parseInt(creditAmount, 10);
+                      void review(approveTarget.id, 'approved', Number.isFinite(amt) ? amt : 0);
+                    }}
+                  >
+                    <h3 className="font-semibold">Approve upload</h3>
+                    <p className="text-sm text-zinc-600">{approveTarget.title}</p>
+                    {treasury && (
+                      <p className="text-xs text-zinc-500">
+                        Treasury balance: {treasury.balance} credits
+                        {treasury.balance < parseInt(creditAmount || '0', 10) && (
+                          <span className="text-red-600"> — insufficient for this payout</span>
+                        )}
+                      </p>
+                    )}
+                    <HubField label="Credits to award">
+                      <HubTextInput
+                        type="number"
+                        min={0}
+                        max={500}
+                        value={creditAmount}
+                        onChange={(e) => setCreditAmount(e.target.value)}
+                      />
+                    </HubField>
+                    <div className="flex gap-2">
+                      <button type="submit" className={hubBtnPrimary}>
+                        Confirm approve
+                      </button>
+                      <button type="button" className={hubBtnSecondary} onClick={() => setApproveTarget(null)}>
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
             </HubList>
           )}
           {tab === 'courses' && (
@@ -362,11 +427,11 @@ export default function AdminVaultPage() {
                     <HubField label="Semester">
                       <select
                         value={assignSemester}
-                        onChange={(e) => setAssignSemester(e.target.value as 'first' | 'second')}
+                        onChange={(e) => setAssignSemester(e.target.value as '1' | '2')}
                         className="hub-input w-full rounded-xl px-3.5 py-2.5 text-sm"
                       >
-                        <option value="first">First semester</option>
-                        <option value="second">Second semester</option>
+                        <option value="1">First semester</option>
+                        <option value="2">Second semester</option>
                       </select>
                     </HubField>
                     <button type="submit" className={hubBtnPrimary}>
@@ -412,12 +477,12 @@ export default function AdminVaultPage() {
                 <select
                   required
                   value={semester}
-                  onChange={(e) => setSemester(e.target.value as 'first' | 'second' | '')}
+                  onChange={(e) => setSemester(e.target.value as '1' | '2' | '')}
                   className="hub-input w-full rounded-xl px-3.5 py-2.5 text-sm"
                 >
                   <option value="">— Select semester —</option>
-                  <option value="first">First semester</option>
-                  <option value="second">Second semester</option>
+                  <option value="1">First semester</option>
+                  <option value="2">Second semester</option>
                 </select>
               </HubField>
               <HubField label="Course code">
