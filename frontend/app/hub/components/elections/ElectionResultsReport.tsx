@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Share2 } from 'lucide-react';
 import type { ElectionAnalytics, ElectionPosition } from '@/lib/election-types';
+import CandidatePhoto from '@/app/hub/components/elections/CandidatePhoto';
 import { hubBtnSecondary } from '@/lib/hub-styles';
 
 type ElectionResultsReportProps = {
@@ -221,25 +222,28 @@ function PositionResultCard({ position }: { position: ElectionPosition }) {
           return (
             <li key={c.id} className="px-5 py-4">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <span className="font-medium text-[var(--color-hub-text)]">
-                    {c.name}
-                    {c.is_winner && (
-                      <span className="ml-2 rounded-full bg-[var(--color-brand-soft)] px-2 py-0.5 text-xs font-bold text-[var(--color-brand)]">
-                        Winner
-                      </span>
+                <div className="flex min-w-0 items-start gap-3">
+                  <CandidatePhoto name={c.name} imageUrl={c.image_url} size="sm" />
+                  <div>
+                    <span className="font-medium text-[var(--color-hub-text)]">
+                      {c.name}
+                      {c.is_winner && (
+                        <span className="ml-2 rounded-full bg-[var(--color-brand-soft)] px-2 py-0.5 text-xs font-bold text-[var(--color-brand)]">
+                          Winner
+                        </span>
+                      )}
+                      {c.is_tie && (
+                        <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+                          Tied
+                        </span>
+                      )}
+                    </span>
+                    {c.manifesto && (
+                      <p className="mt-1 line-clamp-2 text-xs text-[var(--color-hub-text-secondary)]">
+                        {c.manifesto}
+                      </p>
                     )}
-                    {c.is_tie && (
-                      <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
-                        Tied
-                      </span>
-                    )}
-                  </span>
-                  {c.manifesto && (
-                    <p className="mt-1 line-clamp-2 text-xs text-[var(--color-hub-text-secondary)]">
-                      {c.manifesto}
-                    </p>
-                  )}
+                  </div>
                 </div>
                 <div className="text-right text-sm font-semibold tabular-nums">
                   {votes} <span className="font-normal text-[var(--color-hub-muted)]">({pct}%)</span>

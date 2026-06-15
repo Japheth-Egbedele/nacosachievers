@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ElectionResultsReport from '@/app/hub/components/elections/ElectionResultsReport';
+import CandidatePhoto from '@/app/hub/components/elections/CandidatePhoto';
 import { SpinnerCenter } from '@/app/components/Spinner';
 import type { ElectionAnalytics, ElectionPosition } from '@/lib/election-types';
 import { apiFetch, ApiClientError } from '@/lib/api';
@@ -44,7 +45,7 @@ export default function AdminElectionDetailPage() {
   const [editingPosition, setEditingPosition] = useState<string | null>(null);
   const [editPositionTitle, setEditPositionTitle] = useState('');
   const [contestantForms, setContestantForms] = useState<
-    Record<string, { name: string; manifesto: string }>
+    Record<string, { name: string; manifesto: string; photo: File | null; photoPreview: string | null }>
   >({});
 
   const loadSetup = useCallback(() => {
@@ -146,25 +147,74 @@ export default function AdminElectionDetailPage() {
     }
   }
 
+  const contestantFormsRef = useRef(contestantForms);
+  contestantFormsRef.current = contestantForms;
+
+  useEffect(() => {
+    return () => {
+      for (const form of Object.values(contestantFormsRef.current)) {
+        if (form.photoPreview) URL.revokeObjectURL(form.photoPreview);
+      }
+    };
+  }, []);
+
   async function addContestant(positionId: string, e: React.FormEvent) {
     e.preventDefault();
     const form = contestantForms[positionId];
     if (!id || !form?.name.trim()) return;
     setError('');
     try {
+      const fd = new FormData();
+      fd.append('position_id', positionId);
+      fd.append('name', form.name.trim());
+      if (form.manifesto.trim()) fd.append('manifesto', form.manifesto.trim());
+      if (form.photo) fd.append('photo', form.photo);
       await apiFetch(`/admin/elections/${id}/candidates`, {
         method: 'POST',
-        body: JSON.stringify({
-          position_id: positionId,
-          name: form.name.trim(),
-          manifesto: form.manifesto.trim() || undefined,
-        }),
+        body: fd,
       });
-      setContestantForms((prev) => ({ ...prev, [positionId]: { name: '', manifesto: '' } }));
+      if (form.photoPreview) URL.revokeObjectURL(form.photoPreview);
+      setContestantForms((prev) => ({
+        ...prev,
+        [positionId]: { name: '', manifesto: '', photo: null, photoPreview: null },
+      }));
       loadSetup();
       loadResults();
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Failed to add contestant');
+    }
+  }
+
+  async function updateContestantPhoto(candidateId: string, file: File) {
+    setError('');
+    try {
+      const fd = new FormData();
+      fd.append('photo', file);
+      await apiFetch(`/admin/elections/candidates/${candidateId}`, {
+        method: 'PATCH',
+        body: fd,
+      });
+      loadSetup();
+      loadResults();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Failed to update photo');
+    }
+  }
+
+  async function removeContestantPhoto(candidateId: string) {
+    if (!confirm('Remove this contestant photo?')) return;
+    setError('');
+    try {
+      const fd = new FormData();
+      fd.append('remove_photo', 'true');
+      await apiFetch(`/admin/elections/candidates/${candidateId}`, {
+        method: 'PATCH',
+        body: fd,
+      });
+      loadSetup();
+      loadResults();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Failed to remove photo');
     }
   }
 
@@ -333,17 +383,44 @@ export default function AdminElectionDetailPage() {
                   {pos.candidates.map((c) => (
                     <li
                       key={c.id}
-                      className="flex items-center justify-between px-5 py-3 text-sm"
+                      className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm"
                     >
-                      <span>{c.name}</span>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <CandidatePhoto name={c.name} imageUrl={c.image_url} size="sm" />
+                        <span className="font-medium">{c.name}</span>
+                      </div>
                       {can_edit_structure && (
-                        <button
-                          type="button"
-                          onClick={() => removeContestant(c.id)}
-                          className="text-red-600 hover:underline"
-                        >
-                          Remove
-                        </button>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <label className="cursor-pointer text-emerald-600 hover:underline">
+                            {c.image_url ? 'Change photo' : 'Add photo'}
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              className="sr-only"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                e.target.value = '';
+                                if (file) void updateContestantPhoto(c.id, file);
+                              }}
+                            />
+                          </label>
+                          {c.image_url && (
+                            <button
+                              type="button"
+                              onClick={() => removeContestantPhoto(c.id)}
+                              className="text-zinc-500 hover:underline"
+                            >
+                              Remove photo
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeContestant(c.id)}
+                            className="text-red-600 hover:underline"
+                          >
+                            Remove
+                          </button>
+                        </div>
                       )}
                     </li>
                   ))}
@@ -369,6 +446,8 @@ export default function AdminElectionDetailPage() {
                             [pos.id]: {
                               name: e.target.value,
                               manifesto: prev[pos.id]?.manifesto ?? '',
+                              photo: prev[pos.id]?.photo ?? null,
+                              photoPreview: prev[pos.id]?.photoPreview ?? null,
                             },
                           }))
                         }
@@ -384,12 +463,51 @@ export default function AdminElectionDetailPage() {
                             [pos.id]: {
                               name: prev[pos.id]?.name ?? '',
                               manifesto: e.target.value,
+                              photo: prev[pos.id]?.photo ?? null,
+                              photoPreview: prev[pos.id]?.photoPreview ?? null,
                             },
                           }))
                         }
                         placeholder="Manifesto (optional)"
                         className="min-w-[12rem] flex-[2] rounded-lg border px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800"
                       />
+                      <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-zinc-300 px-3 py-2 text-sm text-zinc-600 dark:border-zinc-600 dark:text-zinc-400">
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="sr-only"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] ?? null;
+                            e.target.value = '';
+                            setContestantForms((prev) => {
+                              const current = prev[pos.id] ?? {
+                                name: '',
+                                manifesto: '',
+                                photo: null,
+                                photoPreview: null,
+                              };
+                              if (current.photoPreview) URL.revokeObjectURL(current.photoPreview);
+                              return {
+                                ...prev,
+                                [pos.id]: {
+                                  ...current,
+                                  photo: file,
+                                  photoPreview: file ? URL.createObjectURL(file) : null,
+                                },
+                              };
+                            });
+                          }}
+                        />
+                        {contestantForms[pos.id]?.photoPreview ? (
+                          <img
+                            src={contestantForms[pos.id]!.photoPreview!}
+                            alt="Preview"
+                            className="h-10 w-10 rounded-full object-cover"
+                          />
+                        ) : (
+                          <span>Photo (optional)</span>
+                        )}
+                      </label>
                       <button
                         type="submit"
                         className="rounded-lg bg-emerald-600 px-4 py-2 text-sm text-white"
@@ -397,6 +515,9 @@ export default function AdminElectionDetailPage() {
                         Add
                       </button>
                     </div>
+                    <p className="mt-2 text-xs text-zinc-500">
+                      JPEG, PNG, or WebP · max 5 MB · square photos work best
+                    </p>
                   </form>
                 )}
               </section>

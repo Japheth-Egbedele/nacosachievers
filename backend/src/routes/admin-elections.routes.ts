@@ -5,6 +5,7 @@ import { authMiddleware } from '../middleware/auth.middleware.js';
 import { requireActiveUser } from '../middleware/require-active-user.js';
 import { requireAdminScope } from '../middleware/require-admin-scope.js';
 import { requireExecutive } from '../middleware/role-guard.js';
+import { imageUpload } from '../middleware/upload.middleware.js';
 import {
   createCandidateSchema,
   createElectionSchema,
@@ -41,6 +42,7 @@ router.patch(
 router.delete('/positions/:positionId', catchAsync(adminElectionsController.deletePosition));
 router.patch(
   '/candidates/:candidateId',
+  imageUpload.single('photo'),
   validate(updateCandidateSchema),
   catchAsync(adminElectionsController.updateCandidate),
 );
@@ -57,6 +59,7 @@ router.post(
 );
 router.post(
   '/:id/candidates',
+  imageUpload.single('photo'),
   validate(createCandidateSchema),
   catchAsync(adminElectionsController.createCandidate),
 );

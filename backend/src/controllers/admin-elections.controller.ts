@@ -68,9 +68,8 @@ export async function createCandidate(req: Request, res: Response): Promise<void
     position_id: string;
     name: string;
     manifesto?: string;
-    image_url?: string;
   };
-  const data = await electionService.createCandidate(req.params.id!, body);
+  const data = await electionService.createCandidate(req.params.id!, body, req.file);
   sendSuccess(res, data, HTTP_STATUS.CREATED);
 }
 
@@ -78,9 +77,17 @@ export async function updateCandidate(req: Request, res: Response): Promise<void
   const body = req.body as {
     name?: string;
     manifesto?: string;
-    image_url?: string;
+    remove_photo?: boolean;
   };
-  const data = await electionService.updateCandidate(req.params.candidateId!, body);
+  const data = await electionService.updateCandidate(
+    req.params.candidateId!,
+    {
+      name: body.name,
+      manifesto: body.manifesto,
+      remove_photo: body.remove_photo,
+    },
+    req.file,
+  );
   sendSuccess(res, data);
 }
 

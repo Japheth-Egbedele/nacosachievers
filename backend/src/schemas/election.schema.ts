@@ -49,13 +49,15 @@ export const createCandidateSchema = z.object({
   position_id: z.string().uuid(),
   name: z.string().min(1).max(200),
   manifesto: z.string().max(5000).optional(),
-  image_url: z.string().url().optional().or(z.literal('')),
 });
 
 export const updateCandidateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   manifesto: z.string().max(5000).optional(),
-  image_url: z.string().url().optional().or(z.literal('')),
+  remove_photo: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => v === 'true'),
 });
 
 export const electionListQuerySchema = z.object({

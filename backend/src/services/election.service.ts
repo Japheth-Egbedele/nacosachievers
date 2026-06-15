@@ -1,6 +1,9 @@
 import { getSupabase } from '../config/supabase.js';
 import { ForbiddenError, NotFoundError, ValidationError } from '../utils/errors.js';
+import { assertImageMagic } from '../utils/file-validation.js';
 import { MEMBER_LEVEL_BUCKETS } from '../utils/member-scope.js';
+import { optimizeImageUrl } from './user.service.js';
+import * as storageService from './storage.service.js';
 import {
   assertElectionDepartmentAccess,
   countBallotsCast,
@@ -128,6 +131,28 @@ async function fetchPositions(electionId: string): Promise<PositionRow[]> {
 
   if (error) rethrowElectionDbError(error);
   return data ?? [];
+}
+
+function publicCandidateImage(url: string | null): string | null {
+  return optimizeImageUrl(url);
+}
+
+async function deleteCandidateImage(imageUrl: string | null): Promise<void> {
+  if (!imageUrl) return;
+  const path = storageService.extractPathFromUrl(imageUrl, 'public-images');
+  await storageService.deleteFile('public-images', path).catch(() => undefined);
+}
+
+async function uploadCandidateImage(
+  electionId: string,
+  candidateId: string,
+  file: Express.Multer.File,
+): Promise<string> {
+  assertImageMagic(file.buffer);
+  const ext =
+    file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg';
+  const path = `elections/${electionId}/${candidateId}.${ext}`;
+  return storageService.uploadFile('public-images', path, file.buffer, file.mimetype);
 }
 
 async function fetchCandidates(electionId: string): Promise<CandidateRow[]> {
@@ -278,7 +303,7 @@ export async function getElectionDetail(electionId: string, userId: string) {
         id: c.id,
         name: c.name,
         manifesto: c.manifesto,
-        image_url: c.image_url,
+        image_url: publicCandidateImage(c.image_url),
         ...(showCounts ? { vote_count: countByCandidate.get(c.id) ?? 0 } : {}),
       })),
   }));
@@ -305,9 +330,13 @@ export async function getElectionDetail(electionId: string, userId: string) {
   };
 
   if (showCounts) {
+    const optimizedCandidates = candidates.map((c) => ({
+      ...c,
+      image_url: publicCandidateImage(c.image_url),
+    }));
     const positionResults = buildPositionResults(
       positions,
-      candidates,
+      optimizedCandidates,
       countByCandidate,
       abstentionCounts,
     );
@@ -595,7 +624,7 @@ export async function getAdminElectionSetup(electionId: string) {
         id: c.id,
         name: c.name,
         manifesto: c.manifesto,
-        image_url: c.image_url,
+        image_url: publicCandidateImage(c.image_url),
       })),
   }));
 
@@ -704,8 +733,8 @@ export async function createCandidate(
     position_id: string;
     name: string;
     manifesto?: string;
-    image_url?: string;
   },
+  imageFile?: Express.Multer.File,
 ) {
   const election = await getElectionRow(electionId);
   if (election.status === 'completed') {
@@ -730,13 +759,26 @@ export async function createCandidate(
       name: input.name.trim(),
       position: position.title,
       manifesto: input.manifesto ?? null,
-      image_url: input.image_url || null,
+      image_url: null,
     })
     .select()
     .single();
 
   if (error) throw error;
-  return data;
+
+  if (imageFile) {
+    const imageUrl = await uploadCandidateImage(electionId, data.id, imageFile);
+    const { data: updated, error: updateErr } = await getSupabase()
+      .from('election_candidates')
+      .update({ image_url: imageUrl, updated_at: new Date().toISOString() })
+      .eq('id', data.id)
+      .select()
+      .single();
+    if (updateErr) throw updateErr;
+    return { ...updated, image_url: publicCandidateImage(updated.image_url) };
+  }
+
+  return { ...data, image_url: publicCandidateImage(data.image_url) };
 }
 
 export async function updateCandidate(
@@ -744,12 +786,13 @@ export async function updateCandidate(
   updates: {
     name?: string;
     manifesto?: string;
-    image_url?: string;
+    remove_photo?: boolean;
   },
+  imageFile?: Express.Multer.File,
 ) {
   const { data: existing } = await getSupabase()
     .from('election_candidates')
-    .select('election_id')
+    .select('election_id, image_url')
     .eq('id', candidateId)
     .maybeSingle();
 
@@ -760,7 +803,16 @@ export async function updateCandidate(
   const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (updates.name !== undefined) payload.name = updates.name.trim();
   if (updates.manifesto !== undefined) payload.manifesto = updates.manifesto;
-  if (updates.image_url !== undefined) payload.image_url = updates.image_url || null;
+
+  if (updates.remove_photo) {
+    await deleteCandidateImage(existing.image_url);
+    payload.image_url = null;
+  }
+
+  if (imageFile) {
+    if (existing.image_url) await deleteCandidateImage(existing.image_url);
+    payload.image_url = await uploadCandidateImage(existing.election_id, candidateId, imageFile);
+  }
 
   const { data, error } = await getSupabase()
     .from('election_candidates')
@@ -770,13 +822,13 @@ export async function updateCandidate(
     .single();
 
   if (error) throw error;
-  return data;
+  return { ...data, image_url: publicCandidateImage(data.image_url) };
 }
 
 export async function deleteCandidate(candidateId: string) {
   const { data: existing } = await getSupabase()
     .from('election_candidates')
-    .select('election_id')
+    .select('election_id, image_url')
     .eq('id', candidateId)
     .maybeSingle();
 
@@ -784,6 +836,7 @@ export async function deleteCandidate(candidateId: string) {
   const election = await getElectionRow(existing.election_id);
   assertStructureEditable(election.status);
 
+  await deleteCandidateImage(existing.image_url);
   const { error } = await getSupabase().from('election_candidates').delete().eq('id', candidateId);
   if (error) throw error;
 }
@@ -988,9 +1041,13 @@ export async function getElectionResults(
   const { countByCandidate } = buildVoteCounts(voteRows ?? []);
   const abstentionCounts = await fetchAbstentionCounts(electionId);
   const uniqueVoters = await countBallotsCast(electionId);
+  const optimizedCandidates = candidates.map((c) => ({
+    ...c,
+    image_url: publicCandidateImage(c.image_url),
+  }));
   const positionResults = buildPositionResults(
     positions,
-    candidates,
+    optimizedCandidates,
     countByCandidate,
     abstentionCounts,
   );

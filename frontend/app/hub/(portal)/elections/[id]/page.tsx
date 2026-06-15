@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import ElectionResultsReport from '@/app/hub/components/elections/ElectionResultsReport';
+import CandidatePhoto from '@/app/hub/components/elections/CandidatePhoto';
 import { SpinnerCenter } from '@/app/components/Spinner';
 import HubAlert from '@/app/hub/components/ui/HubAlert';
 import { IconChevronLeft } from '@/app/hub/components/ui/HubIcons';
@@ -226,7 +227,7 @@ export default function ElectionDetailPage() {
               <ul className="mt-3 space-y-2">
                 {pos.candidates.map((c) => (
                   <li key={c.id}>
-                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-zinc-200 p-4 transition has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 dark:border-zinc-700 dark:has-[:checked]:bg-emerald-950/30">
+                    <label className="flex cursor-pointer items-start gap-4 rounded-xl border border-zinc-200 p-4 transition has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 dark:border-zinc-700 dark:has-[:checked]:bg-emerald-950/30">
                       <input
                         type="radio"
                         name={`position-${pos.id}`}
@@ -237,9 +238,10 @@ export default function ElectionDetailPage() {
                           })()
                         }
                         onChange={() => pickCandidate(pos.id, c.id)}
-                        className="mt-1"
+                        className="mt-5 shrink-0"
                       />
-                      <div>
+                      <CandidatePhoto name={c.name} imageUrl={c.image_url} size="md" className="mt-0.5" />
+                      <div className="min-w-0 flex-1">
                         <span className="font-medium">{c.name}</span>
                         {c.manifesto && (
                           <p className="mt-1 text-sm text-zinc-500">{c.manifesto}</p>
@@ -291,19 +293,28 @@ export default function ElectionDetailPage() {
             <p className="mt-2 text-sm text-zinc-600">
               You cannot change these choices after submitting.
             </p>
-            <ul className="mt-4 space-y-2 text-sm">
+            <ul className="mt-4 space-y-3 text-sm">
               {contestable.map((pos) => {
                 const pick = selected[pos.id];
+                const candidate =
+                  pick?.kind === 'candidate'
+                    ? pos.candidates.find((c) => c.id === pick.id)
+                    : null;
                 const name =
                   pick?.kind === 'abstain'
                     ? 'None of the above'
-                    : pick?.kind === 'candidate'
-                      ? (pos.candidates.find((c) => c.id === pick.id)?.name ?? '—')
-                      : '—';
+                    : (candidate?.name ?? '—');
                 return (
-                  <li key={pos.id}>
-                    <span className="text-zinc-500">{pos.title}:</span>{' '}
-                    <strong>{name}</strong>
+                  <li key={pos.id} className="flex items-center gap-3">
+                    {candidate ? (
+                      <CandidatePhoto name={candidate.name} imageUrl={candidate.image_url} size="sm" />
+                    ) : (
+                      <div className="h-12 w-12 shrink-0 rounded-full bg-zinc-100 dark:bg-zinc-800" />
+                    )}
+                    <div>
+                      <span className="text-zinc-500">{pos.title}:</span>{' '}
+                      <strong>{name}</strong>
+                    </div>
                   </li>
                 );
               })}
