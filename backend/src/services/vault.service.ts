@@ -635,13 +635,97 @@ export async function listPending() {
   return (data ?? []).map((u) => enrichUpload(u, filesMap));
 }
 
+export async function getAdminPreviewUrls(uploadId: string) {
+  const { data: upload } = await getSupabase()
+    .from('vault_uploads')
+    .select('id, status, file_url, file_name, title')
+    .eq('id', uploadId)
+    .maybeSingle();
+  if (!upload || upload.status !== 'pending') {
+    throw new NotFoundError('Pending upload not found');
+  }
+
+  const { data: fileRows } = await getSupabase()
+    .from('vault_upload_files')
+    .select('id, file_name, content_mime, file_url, sort_order')
+    .eq('upload_id', uploadId)
+    .order('sort_order');
+
+  const sources =
+    fileRows?.length
+      ? fileRows
+      : upload.file_url && upload.file_url !== 'pending'
+        ? [
+            {
+              id: upload.id,
+              file_name: upload.file_name ?? upload.title,
+              content_mime: 'application/pdf',
+              file_url: upload.file_url,
+              sort_order: 0,
+            },
+          ]
+        : [];
+
+  if (!sources.length) throw new NotFoundError('No files found for this upload');
+
+  const files = await Promise.all(
+    sources.map(async (f) => ({
+      id: f.id,
+      file_name: f.file_name,
+      content_mime: f.content_mime,
+      preview_url: await storageService.createSignedUrl(BUCKET, f.file_url),
+    })),
+  );
+
+  return { files };
+}
+
+async function sendVaultApprovalDigest(input: {
+  userId: string;
+  approvals: { id: string; title: string; reward: number }[];
+}) {
+  const { approvals } = input;
+  if (!approvals.length) return;
+
+  const count = approvals.length;
+  const totalCredits = approvals.reduce((sum, a) => sum + a.reward, 0);
+  const titleList = approvals
+    .slice(0, 5)
+    .map((a) => a.title)
+    .join(', ');
+  const more = count > 5 ? ` and ${count - 5} more` : '';
+
+  const body =
+    totalCredits > 0
+      ? `${count} upload${count === 1 ? '' : 's'} approved. You earned ${totalCredits} credits total.`
+      : `${count} upload${count === 1 ? '' : 's'} approved.`;
+
+  await notificationService.createNotification({
+    userId: input.userId,
+    title: count === 1 ? 'Upload approved' : `${count} uploads approved`,
+    body: `${body} (${titleList}${more})`,
+    type: 'vault_approved',
+    referenceId: approvals[0]!.id,
+  });
+
+  if (totalCredits > 0) {
+    const subject = count === 1 ? 'Vault upload approved' : `${count} vault uploads approved`;
+    const html =
+      count === 1
+        ? `<p>Your upload <strong>${approvals[0]!.title}</strong> was approved. You earned ${totalCredits} credits.</p>`
+        : `<p><strong>${count}</strong> of your vault uploads were approved. You earned <strong>${totalCredits}</strong> credits total.</p><p>${titleList}${more}</p>`;
+    await notificationService.maybeSendEmail(input.userId, 'email_on_vault', subject, html);
+  }
+}
+
 export async function reviewUpload(input: {
   uploadId: string;
   reviewerId: string;
   status: Extract<UploadStatus, 'approved' | 'rejected'>;
   rejectionReason?: string;
   creditAmount?: number;
-}) {
+  suppressNotification?: boolean;
+}): Promise<{ uploaderId: string; title: string; reward: number } | null> {
   const { data: upload } = await getSupabase()
     .from('vault_uploads')
     .select('*')
@@ -685,24 +769,28 @@ export async function reviewUpload(input: {
       })
       .eq('id', upload.id);
 
-    await notificationService.createNotification({
-      userId: upload.uploader_id,
-      title: 'Upload approved',
-      body:
-        reward > 0
-          ? `Your upload "${upload.title}" was approved. You earned ${reward} credits.`
-          : `Your upload "${upload.title}" was approved.`,
-      type: 'vault_approved',
-      referenceId: upload.id,
-    });
-    if (reward > 0) {
-      await notificationService.maybeSendEmail(
-        upload.uploader_id,
-        'email_on_vault',
-        'Vault upload approved',
-        `<p>Your upload was approved. You earned ${reward} credits.</p>`,
-      );
+    if (!input.suppressNotification) {
+      await notificationService.createNotification({
+        userId: upload.uploader_id,
+        title: 'Upload approved',
+        body:
+          reward > 0
+            ? `Your upload "${upload.title}" was approved. You earned ${reward} credits.`
+            : `Your upload "${upload.title}" was approved.`,
+        type: 'vault_approved',
+        referenceId: upload.id,
+      });
+      if (reward > 0) {
+        await notificationService.maybeSendEmail(
+          upload.uploader_id,
+          'email_on_vault',
+          'Vault upload approved',
+          `<p>Your upload <strong>${upload.title}</strong> was approved. You earned ${reward} credits.</p>`,
+        );
+      }
     }
+
+    return { uploaderId: upload.uploader_id, title: upload.title, reward };
   } else if (input.status === 'rejected') {
     await getSupabase().from('vault_upload_files').delete().eq('upload_id', input.uploadId);
     await notificationService.createNotification({
@@ -713,6 +801,113 @@ export async function reviewUpload(input: {
       referenceId: upload.id,
     });
   }
+
+  return null;
+}
+
+export async function bulkApproveUploads(input: {
+  uploadIds: string[];
+  reviewerId: string;
+  creditAmount?: number;
+}) {
+  const uniqueIds = [...new Set(input.uploadIds)];
+  const defaultReward = await settingsService.getSettingNumber('vault_upload_credit_reward', 10);
+  const perUpload = input.creditAmount ?? defaultReward;
+  const totalPayout = perUpload * uniqueIds.length;
+
+  if (perUpload > 0 && totalPayout > 0) {
+    const treasury = await walletService.getTreasurySummary();
+    if (treasury.balance < totalPayout) {
+      throw new ValidationError(
+        `Insufficient treasury balance. Need ${totalPayout} credits (${perUpload} × ${uniqueIds.length}) but treasury has ${treasury.balance}.`,
+      );
+    }
+  }
+
+  const errors: { id: string; message: string }[] = [];
+  const digestByUploader = new Map<string, { id: string; title: string; reward: number }[]>();
+
+  for (const uploadId of uniqueIds) {
+    try {
+      const { data: row } = await getSupabase()
+        .from('vault_uploads')
+        .select('id, status')
+        .eq('id', uploadId)
+        .maybeSingle();
+      if (!row) {
+        errors.push({ id: uploadId, message: 'Upload not found' });
+        continue;
+      }
+      if (row.status !== 'pending') {
+        errors.push({ id: uploadId, message: 'Upload is not pending' });
+        continue;
+      }
+
+      const result = await reviewUpload({
+        uploadId,
+        reviewerId: input.reviewerId,
+        status: 'approved',
+        creditAmount: perUpload,
+        suppressNotification: true,
+      });
+      if (result) {
+        const list = digestByUploader.get(result.uploaderId) ?? [];
+        list.push({ id: uploadId, title: result.title, reward: result.reward });
+        digestByUploader.set(result.uploaderId, list);
+      }
+    } catch (err) {
+      errors.push({
+        id: uploadId,
+        message: err instanceof Error ? err.message : 'Approval failed',
+      });
+    }
+  }
+
+  for (const [userId, approvals] of digestByUploader) {
+    await sendVaultApprovalDigest({ userId, approvals });
+  }
+
+  const approved = [...digestByUploader.values()].reduce((sum, list) => sum + list.length, 0);
+
+  return {
+    approved,
+    credits_per_upload: perUpload,
+    total_credits: approved * perUpload,
+    errors: errors.length ? errors : undefined,
+  };
+}
+
+export async function bulkDeleteUploads(input: { uploadIds: string[]; actorId: string }) {
+  const uniqueIds = [...new Set(input.uploadIds)];
+  const errors: { id: string; message: string }[] = [];
+  let deleted = 0;
+
+  for (const uploadId of uniqueIds) {
+    try {
+      const { data: row } = await getSupabase()
+        .from('vault_uploads')
+        .select('id, status')
+        .eq('id', uploadId)
+        .maybeSingle();
+      if (!row) {
+        errors.push({ id: uploadId, message: 'Upload not found' });
+        continue;
+      }
+      if (row.status !== 'pending') {
+        errors.push({ id: uploadId, message: 'Only pending uploads can be deleted' });
+        continue;
+      }
+      await deleteUpload(uploadId, input.actorId, true);
+      deleted += 1;
+    } catch (err) {
+      errors.push({
+        id: uploadId,
+        message: err instanceof Error ? err.message : 'Delete failed',
+      });
+    }
+  }
+
+  return { deleted, errors: errors.length ? errors : undefined };
 }
 
 export async function flagUpload(uploadId: string, userId: string, reason: string) {

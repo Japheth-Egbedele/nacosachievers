@@ -158,6 +158,30 @@ export async function reviewUpload(req: Request, res: Response): Promise<void> {
   sendSuccess(res, null, HTTP_STATUS.OK);
 }
 
+export async function previewUpload(req: Request, res: Response): Promise<void> {
+  const data = await vaultService.getAdminPreviewUrls(req.params.id!);
+  sendSuccess(res, data);
+}
+
+export async function bulkApproveUploads(req: Request, res: Response): Promise<void> {
+  const body = req.body as { upload_ids: string[]; credit_amount?: number };
+  const data = await vaultService.bulkApproveUploads({
+    uploadIds: body.upload_ids,
+    reviewerId: req.user!.id,
+    creditAmount: body.credit_amount,
+  });
+  sendSuccess(res, data);
+}
+
+export async function bulkDeleteUploads(req: Request, res: Response): Promise<void> {
+  const body = req.body as { upload_ids: string[] };
+  const data = await vaultService.bulkDeleteUploads({
+    uploadIds: body.upload_ids,
+    actorId: req.user!.id,
+  });
+  sendSuccess(res, data);
+}
+
 export async function flagUpload(req: Request, res: Response): Promise<void> {
   const { reason } = req.body as { reason: string };
   await vaultService.flagUpload(req.params.id!, req.user!.id, reason);

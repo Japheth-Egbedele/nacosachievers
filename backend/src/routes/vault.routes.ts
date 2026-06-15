@@ -7,6 +7,8 @@ import { requireExecutive } from '../middleware/role-guard.js';
 import { uploadRateLimiter } from '../middleware/rate-limiter.js';
 import { requireMemberPortal } from '../middleware/require-member-portal.js';
 import { pdfUpload } from '../middleware/upload.middleware.js';
+import { validate } from '../middleware/validate.js';
+import { bulkApproveSchema, bulkDeleteSchema } from '../schemas/vault.schema.js';
 import * as vaultController from '../controllers/vault.controller.js';
 
 const router = Router();
@@ -75,6 +77,32 @@ router.delete('/uploads/:id', authMiddleware, catchAsync(requireActiveUser), req
 
 router.get('/pending', authMiddleware, catchAsync(requireActiveUser), requireExecutive, vaultScope, catchAsync(vaultController.listPending));
 router.get('/treasury-summary', authMiddleware, catchAsync(requireActiveUser), requireExecutive, vaultScope, catchAsync(vaultController.getTreasurySummary));
+router.get(
+  '/uploads/:id/preview',
+  authMiddleware,
+  catchAsync(requireActiveUser),
+  requireExecutive,
+  vaultScope,
+  catchAsync(vaultController.previewUpload),
+);
+router.post(
+  '/uploads/bulk-approve',
+  authMiddleware,
+  catchAsync(requireActiveUser),
+  requireExecutive,
+  vaultScope,
+  validate(bulkApproveSchema),
+  catchAsync(vaultController.bulkApproveUploads),
+);
+router.post(
+  '/uploads/bulk-delete',
+  authMiddleware,
+  catchAsync(requireActiveUser),
+  requireExecutive,
+  vaultScope,
+  validate(bulkDeleteSchema),
+  catchAsync(vaultController.bulkDeleteUploads),
+);
 router.patch(
   '/uploads/:id/review',
   authMiddleware,
