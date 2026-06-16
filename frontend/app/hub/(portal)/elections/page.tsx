@@ -32,12 +32,15 @@ export default function ElectionsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
-    const q = filter === 'all' ? '' : `?status=${filter}`;
-    apiFetch<{ elections: Election[] }>(`/elections${q}`)
-      .then((d) => setElections(d.elections))
-      .catch(() => setElections([]))
-      .finally(() => setLoading(false));
+    const t = window.setTimeout(() => {
+      setLoading(true);
+      const q = filter === 'all' ? '' : `?status=${filter}`;
+      apiFetch<{ elections: Election[] }>(`/elections${q}`)
+        .then((d) => setElections(d.elections))
+        .catch(() => setElections([]))
+        .finally(() => setLoading(false));
+    }, 0);
+    return () => window.clearTimeout(t);
   }, [filter]);
 
   return (

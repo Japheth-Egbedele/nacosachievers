@@ -41,11 +41,12 @@ export default function HubMemberPicker({
 
   useEffect(() => {
     if (!value) {
-      setSelected(null);
-      return;
+      const t = window.setTimeout(() => setSelected(null), 0);
+      return () => window.clearTimeout(t);
     }
     if (selected?.id === value) return;
-    setSelected(null);
+    const t = window.setTimeout(() => setSelected(null), 0);
+    return () => window.clearTimeout(t);
   }, [value, selected?.id]);
 
   useEffect(() => {

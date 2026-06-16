@@ -68,9 +68,12 @@ export default function AdminExecutivesPage() {
 
   useEffect(() => {
     if (!isSuperAdmin) return;
-    setLoading(true);
-    loadAssignments();
-    void loadMembers().finally(() => setLoading(false));
+    const t = window.setTimeout(() => {
+      setLoading(true);
+      loadAssignments();
+      void loadMembers().finally(() => setLoading(false));
+    }, 0);
+    return () => window.clearTimeout(t);
   }, [isSuperAdmin, loadMembers]);
 
   async function assignExecutive(userId: string) {

@@ -28,10 +28,13 @@ export default function AdminOverviewPage() {
   const [memberStats, setMemberStats] = useState<MemberStats | null>(null);
 
   useEffect(() => {
-    setMemberScope(readStoredMemberScope());
-    apiFetch<Analytics>('/admin/analytics')
-      .then(setStats)
-      .catch(() => setStats(null));
+    const t = window.setTimeout(() => {
+      setMemberScope(readStoredMemberScope());
+      apiFetch<Analytics>('/admin/analytics')
+        .then(setStats)
+        .catch(() => setStats(null));
+    }, 0);
+    return () => window.clearTimeout(t);
   }, []);
 
   useEffect(() => {

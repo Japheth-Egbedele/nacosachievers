@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import HubPageHeader from '@/app/hub/components/ui/HubPageHeader';
 import HubAlert from '@/app/hub/components/ui/HubAlert';
-import { hubLink } from '@/lib/hub-styles';
 import { apiFetch, ApiClientError } from '@/lib/api';
 
 interface ConversationRow {

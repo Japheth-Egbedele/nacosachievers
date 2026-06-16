@@ -48,7 +48,8 @@ export default function WalletPage() {
   }
 
   useEffect(() => {
-    load();
+    const t = window.setTimeout(() => load(), 0);
+    return () => window.clearTimeout(t);
   }, []);
 
   async function handleTransfer(e: React.FormEvent) {

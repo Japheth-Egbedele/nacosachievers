@@ -37,18 +37,21 @@ export default function VaultSubmissionPreview({
   const [error, setError] = useState('');
 
   useEffect(() => {
-    setLoading(true);
-    setError('');
-    apiFetch<{ files: PreviewFile[] }>(`/vault/uploads/${uploadId}/preview`)
-      .then((data) => {
-        setFiles(data.files);
-        setActiveIndex(0);
-      })
-      .catch((err) => {
-        setError(err instanceof ApiClientError ? err.message : 'Failed to load preview');
-        setFiles([]);
-      })
-      .finally(() => setLoading(false));
+    const timer = window.setTimeout(() => {
+      setLoading(true);
+      setError('');
+      apiFetch<{ files: PreviewFile[] }>(`/vault/uploads/${uploadId}/preview`)
+        .then((data) => {
+          setFiles(data.files);
+          setActiveIndex(0);
+        })
+        .catch((err) => {
+          setError(err instanceof ApiClientError ? err.message : 'Failed to load preview');
+          setFiles([]);
+        })
+        .finally(() => setLoading(false));
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [uploadId]);
 
   const active = files[activeIndex];

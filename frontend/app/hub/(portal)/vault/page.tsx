@@ -54,6 +54,7 @@ interface Upload {
 }
 
 const LEVELS = ['100', '200', '300', '400'] as const;
+const SEMESTERS = ['1', '2'] as const;
 const tabs = [
   { key: 'browse', label: 'Browse' },
   { key: 'mine', label: 'My uploads' },
@@ -98,6 +99,8 @@ function formatUploadStatus(status: string): string {
 export default function VaultPage() {
   const [tab, setTab] = useState<VaultTab>('browse');
   const [browseLevel, setBrowseLevel] = useState<string>('100');
+  const [browseSemester, setBrowseSemester] = useState<'1' | '2'>('1');
+  const [browseSearch, setBrowseSearch] = useState('');
   const [courses, setCourses] = useState<Course[]>([]);
   const [myUploads, setMyUploads] = useState<Upload[]>([]);
   const [limits, setLimits] = useState<UploadLimits | null>(null);
@@ -107,6 +110,7 @@ export default function VaultPage() {
 
   const [uploadLevel, setUploadLevel] = useState<string>('100');
   const [uploadKind, setUploadKind] = useState<UploadKind>('course_material');
+  const [uploadSemester, setUploadSemester] = useState<'1' | '2'>('1');
   const [courseId, setCourseId] = useState('');
   const [pqTitle, setPqTitle] = useState('');
   const [pqImages, setPqImages] = useState<
@@ -133,13 +137,19 @@ export default function VaultPage() {
       );
   }, []);
 
-  const loadCourses = useCallback((level: string) => {
+  const loadCourses = useCallback(
+    (level: string, semester?: string, search?: string) => {
     setLoading(true);
-    apiFetchPaginated<Course>(`/vault/courses?level=${level}&limit=100`)
+    const qs = new URLSearchParams({ level, limit: '100' });
+    if (semester) qs.set('semester', semester);
+    if (search?.trim()) qs.set('search', search.trim());
+    apiFetchPaginated<Course>(`/vault/courses?${qs.toString()}`)
       .then((r) => setCourses(r.items))
       .catch(() => setCourses([]))
       .finally(() => setLoading(false));
-  }, []);
+    },
+    [],
+  );
 
   const loadMyUploads = useCallback(() => {
     setLoading(true);
@@ -154,20 +164,29 @@ export default function VaultPage() {
   }, [loadLimits]);
 
   useEffect(() => {
-    setError('');
-    setSuccess('');
-    if (tab === 'browse') loadCourses(browseLevel);
-    else if (tab === 'mine') loadMyUploads();
-    else {
-      setLoading(false);
-      loadCourses(uploadLevel);
-    }
-  }, [tab, browseLevel, uploadLevel, loadCourses, loadMyUploads]);
+    const t = window.setTimeout(() => {
+      setError('');
+      setSuccess('');
+      if (tab === 'browse') loadCourses(browseLevel, browseSemester, browseSearch);
+      else if (tab === 'mine') loadMyUploads();
+      else {
+        setLoading(false);
+        loadCourses(uploadLevel, uploadSemester, '');
+      }
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [
+    tab,
+    browseLevel,
+    browseSemester,
+    browseSearch,
+    uploadLevel,
+    uploadSemester,
+    loadCourses,
+    loadMyUploads,
+  ]);
 
-  const uploadCourses = useMemo(
-    () => courses.filter((c) => c.level === uploadLevel),
-    [courses, uploadLevel],
-  );
+  const uploadCourses = useMemo(() => courses, [courses]);
 
   async function checkDuplicate(file: File, kind: UploadKind): Promise<boolean> {
     if (!courseId) return false;
@@ -341,6 +360,8 @@ export default function VaultPage() {
     if (done > 0) {
       setSuccess(`${done} upload(s) submitted for review.`);
       setQueue((q) => q.filter((i) => i.status !== 'done'));
+      // Prevent wrong-course mistakes by forcing a deliberate re-select
+      setCourseId('');
     }
   }
 
@@ -397,7 +418,7 @@ export default function VaultPage() {
         <>
           {tab === 'browse' && (
             <div className="mt-6">
-              <div className="mb-4 flex flex-wrap gap-2">
+              <div className="mb-4 flex flex-wrap items-center gap-2">
                 {LEVELS.map((lv) => (
                   <button
                     key={lv}
@@ -413,32 +434,75 @@ export default function VaultPage() {
                   </button>
                 ))}
               </div>
-              <HubList>
-                {courses.length === 0 && <HubListEmpty title={`No L${browseLevel} courses yet`} />}
-                {courses.map((c) => (
-                  <HubListCard key={c.id} className="block">
-                    <Link href={`/hub/vault/courses/${c.id}`} className="flex w-full justify-between gap-4">
-                      <div>
-                        <span className="font-mono text-xs text-[var(--color-brand)]">{c.course_code}</span>
-                        <span className="text-[var(--color-hub-text)]"> — {c.course_name}</span>
-                        {c.units != null && (
-                          <span className="ml-1 text-xs text-[var(--color-hub-text-secondary)]">
-                            · {formatCourseUnits(c.units)}
-                          </span>
-                        )}
-                        <p className="mt-0.5 text-xs text-[var(--color-hub-text-secondary)]">
-                          Level {c.level}
-                          {c.semester ? ` · Semester ${c.semester}` : ''}
-                        </p>
-                      </div>
-                      <div className="shrink-0 text-right text-xs text-[var(--color-hub-text-secondary)]">
-                        <div>{c.past_question_count ?? 0} past Q</div>
-                        <div>{c.course_material_count ?? 0} materials</div>
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <div className="flex gap-2">
+                  {SEMESTERS.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setBrowseSemester(s)}
+                      className={
+                        browseSemester === s
+                          ? 'rounded-full bg-[var(--color-brand)] px-4 py-1.5 text-sm font-medium text-white'
+                          : 'rounded-full border border-[var(--color-hub-border)] px-4 py-1.5 text-sm'
+                      }
+                    >
+                      Semester {s}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex-1" />
+                <input
+                  value={browseSearch}
+                  onChange={(e) => setBrowseSearch(e.target.value)}
+                  placeholder="Search courses (e.g. CSC 201, data structures)…"
+                  className="hub-input w-full max-w-md rounded-xl px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              {courses.length === 0 ? (
+                <HubListEmpty title={`No L${browseLevel} Semester ${browseSemester} courses yet`} />
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {courses.map((c) => (
+                    <Link
+                      key={c.id}
+                      href={`/hub/vault/courses/${c.id}`}
+                      className="hub-card block rounded-2xl border border-[var(--color-hub-border)] bg-[var(--color-hub-surface)] p-4 transition hover:border-emerald-300 hover:shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-mono text-xs font-semibold text-[var(--color-brand)]">
+                            {c.course_code}
+                          </p>
+                          <p className="mt-1 line-clamp-2 text-sm font-semibold text-[var(--color-hub-text)]">
+                            {c.course_name}
+                          </p>
+                          <p className="mt-1 text-xs text-[var(--color-hub-text-secondary)]">
+                            Level {c.level}
+                            {c.semester ? ` · Sem ${c.semester}` : ''}
+                            {c.units != null ? ` · ${formatCourseUnits(c.units)}` : ''}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right text-xs text-[var(--color-hub-text-secondary)]">
+                          <div>
+                            <span className="font-semibold tabular-nums">
+                              {c.past_question_count ?? 0}
+                            </span>{' '}
+                            past Q
+                          </div>
+                          <div>
+                            <span className="font-semibold tabular-nums">
+                              {c.course_material_count ?? 0}
+                            </span>{' '}
+                            materials
+                          </div>
+                        </div>
                       </div>
                     </Link>
-                  </HubListCard>
-                ))}
-              </HubList>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -502,6 +566,26 @@ export default function VaultPage() {
                 ))}
               </div>
 
+              <div className="flex flex-wrap gap-2">
+                {SEMESTERS.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => {
+                      setUploadSemester(s);
+                      setCourseId('');
+                    }}
+                    className={
+                      uploadSemester === s
+                        ? 'rounded-full bg-[var(--color-brand)] px-4 py-1.5 text-sm font-medium text-white'
+                        : 'rounded-full border border-[var(--color-hub-border)] px-4 py-1.5 text-sm'
+                    }
+                  >
+                    Semester {s}
+                  </button>
+                ))}
+              </div>
+
               <HubField label="Upload type">
                 <div className="flex flex-wrap gap-2">
                   {(
@@ -541,6 +625,14 @@ export default function VaultPage() {
                   ))}
                 </select>
               </HubField>
+
+              <HubAlert variant="info" className="text-sm">
+                Please name uploads clearly. Vague titles like “past question” or “notes” may be rejected.
+                <div className="mt-2 text-xs text-[var(--color-hub-text-secondary)]">
+                  Examples: <strong>CSC 201 — 2023/2024 First Semester Exam</strong> ·{' '}
+                  <strong>CSC 201 — Unit 3 Lecture Notes (Dr. X)</strong>
+                </div>
+              </HubAlert>
 
               <HubAlert variant="info" className="text-sm">
                 Default reward: <strong>{limits.default_credit_reward} credits</strong> per approved upload

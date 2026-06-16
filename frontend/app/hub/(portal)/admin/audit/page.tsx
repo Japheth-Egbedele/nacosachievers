@@ -45,7 +45,9 @@ export default function AdminAuditPage() {
   }, [actionFilter]);
 
   useEffect(() => {
-    if (!authLoading && isAdmin) load();
+    if (authLoading || !isAdmin) return;
+    const t = window.setTimeout(() => load(), 0);
+    return () => window.clearTimeout(t);
   }, [authLoading, isAdmin, load]);
 
   if (authLoading) return <SpinnerCenter label="Loading…" />;

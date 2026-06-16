@@ -49,7 +49,8 @@ export default function AdminMarketplacePage() {
   };
 
   useEffect(() => {
-    load();
+    const t = window.setTimeout(() => load(), 0);
+    return () => window.clearTimeout(t);
   }, []);
 
   async function createItem(e: React.FormEvent) {

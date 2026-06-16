@@ -29,7 +29,8 @@ export default function AdminLecturersPage() {
   };
 
   useEffect(() => {
-    load();
+    const t = window.setTimeout(() => load(), 0);
+    return () => window.clearTimeout(t);
   }, []);
 
   async function create(e: React.FormEvent) {

@@ -22,6 +22,7 @@ interface PendingUpload {
   created_at: string;
   users?: { matric_number?: string; display_name?: string };
   files?: { id: string; file_name: string; content_mime: string }[];
+  vault_courses?: { course_code?: string; course_name?: string; level?: string; semester?: string; units?: number | null };
 }
 
 interface TreasurySummary {
@@ -94,6 +95,8 @@ export default function AdminVaultPage() {
   const [creditPerUpload, setCreditPerUpload] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [previewTarget, setPreviewTarget] = useState<PendingUpload | null>(null);
+  const [moveTarget, setMoveTarget] = useState<PendingUpload | null>(null);
+  const [moveCourseId, setMoveCourseId] = useState('');
   const [reviewBusy, setReviewBusy] = useState(false);
   const [treasury, setTreasury] = useState<TreasurySummary | null>(null);
   const [courseCode, setCourseCode] = useState('');
@@ -155,21 +158,26 @@ export default function AdminVaultPage() {
   }, []);
 
   useEffect(() => {
-    setError('');
-    setSuccess('');
-    setLoading(true);
-    if (tab === 'pending') loadPending();
-    else if (tab === 'courses') loadCourses();
-    else if (tab === 'flags') loadFlags();
-    else if (tab === 'assignments') {
-      loadCourses();
-      loadLecturers();
-      setLoading(false);
-    } else setLoading(false);
+    const t = window.setTimeout(() => {
+      setError('');
+      setSuccess('');
+      setLoading(true);
+      if (tab === 'pending') loadPending();
+      else if (tab === 'courses') loadCourses();
+      else if (tab === 'flags') loadFlags();
+      else if (tab === 'assignments') {
+        loadCourses();
+        loadLecturers();
+        setLoading(false);
+      } else setLoading(false);
+    }, 0);
+    return () => window.clearTimeout(t);
   }, [tab]);
 
   useEffect(() => {
-    if (tab === 'assignments' && assignCourseId) loadAssignments(assignCourseId);
+    if (tab !== 'assignments' || !assignCourseId) return;
+    const t = window.setTimeout(() => loadAssignments(assignCourseId), 0);
+    return () => window.clearTimeout(t);
   }, [tab, assignCourseId]);
 
   const selectedCount = selectedIds.size;
@@ -272,6 +280,26 @@ export default function AdminVaultPage() {
       setSuccess('Submission deleted.');
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Delete failed');
+    }
+  }
+
+  async function moveUpload() {
+    if (!moveTarget || !moveCourseId) return;
+    setError('');
+    setReviewBusy(true);
+    try {
+      await apiFetch(`/vault/uploads/${moveTarget.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ course_id: moveCourseId }),
+      });
+      setMoveTarget(null);
+      setMoveCourseId('');
+      loadPending();
+      setSuccess('Submission moved.');
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Move failed');
+    } finally {
+      setReviewBusy(false);
     }
   }
 
@@ -475,10 +503,27 @@ export default function AdminVaultPage() {
                         {u.upload_kind?.replace('_', ' ') ?? 'upload'}
                         {u.page_count && u.page_count > 1 ? ` · ${u.page_count} pages` : ''}
                       </p>
+                      {u.vault_courses?.course_code && (
+                        <p className="mt-1 text-xs text-zinc-500">
+                          Course: <strong>{u.vault_courses.course_code}</strong>
+                          {u.vault_courses.semester ? ` · Sem ${u.vault_courses.semester}` : ''}
+                          {u.vault_courses.level ? ` · L${u.vault_courses.level}` : ''}
+                        </p>
+                      )}
                     </div>
                     <div className="flex flex-wrap gap-3">
                       <button type="button" onClick={() => setPreviewTarget(u)} className={hubLink}>
                         Preview
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMoveTarget(u);
+                          setMoveCourseId('');
+                        }}
+                        className={hubLink}
+                      >
+                        Move
                       </button>
                       <button
                         type="button"
@@ -572,6 +617,51 @@ export default function AdminVaultPage() {
                   title={previewTarget.title}
                   onClose={() => setPreviewTarget(null)}
                 />
+              )}
+
+              {moveTarget && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                  <div className="w-full max-w-md space-y-4 rounded-xl bg-white p-6 shadow-lg dark:bg-zinc-900">
+                    <h3 className="font-semibold">Move submission</h3>
+                    <p className="text-sm text-zinc-600">{moveTarget.title}</p>
+                    <HubField label="Move to course">
+                      <select
+                        value={moveCourseId}
+                        onChange={(e) => setMoveCourseId(e.target.value)}
+                        className="hub-input w-full rounded-xl px-3.5 py-2.5 text-sm"
+                      >
+                        <option value="">— Select course —</option>
+                        {courses.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.course_code} — {c.course_name} (L{c.level}
+                            {c.semester ? `, sem ${c.semester}` : ''})
+                          </option>
+                        ))}
+                      </select>
+                    </HubField>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={reviewBusy || !moveCourseId}
+                        onClick={() => void moveUpload()}
+                        className={hubBtnPrimary}
+                      >
+                        {reviewBusy ? 'Moving…' : 'Move'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={reviewBusy}
+                        onClick={() => {
+                          setMoveTarget(null);
+                          setMoveCourseId('');
+                        }}
+                        className={hubBtnSecondary}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           )}

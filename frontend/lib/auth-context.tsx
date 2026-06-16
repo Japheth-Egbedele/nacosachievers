@@ -14,6 +14,8 @@ export interface AuthUser {
   last_name?: string;
   display_name?: string;
   matric_number?: string;
+  unread_notifications_count?: number;
+  unread_messages_count?: number;
   can_issue_pins?: boolean;
   admin_scopes?: AdminScope[];
 }

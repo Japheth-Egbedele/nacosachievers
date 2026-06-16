@@ -86,7 +86,9 @@ export default function AdminElectionDetailPage() {
   }, [isAdmin, id, loadSetup, loadResults]);
 
   useEffect(() => {
-    if (setup?.election.status === 'completed') setTab('results');
+    if (setup?.election.status !== 'completed') return;
+    const t = window.setTimeout(() => setTab('results'), 0);
+    return () => window.clearTimeout(t);
   }, [setup?.election.status]);
 
   async function toggleRequireAll(checked: boolean) {
@@ -148,7 +150,9 @@ export default function AdminElectionDetailPage() {
   }
 
   const contestantFormsRef = useRef(contestantForms);
-  contestantFormsRef.current = contestantForms;
+  useEffect(() => {
+    contestantFormsRef.current = contestantForms;
+  }, [contestantForms]);
 
   useEffect(() => {
     return () => {

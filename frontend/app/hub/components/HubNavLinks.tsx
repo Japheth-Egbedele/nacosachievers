@@ -77,6 +77,12 @@ export default function HubNavLinks({
         </p>
         {links.map(({ href, label, icon: Icon }) => {
           const active = navActive(pathname, href);
+          const showNotifBadge =
+            href === '/hub/notifications' && (user.unread_notifications_count ?? 0) > 0;
+          const notifBadgeText =
+            (user.unread_notifications_count ?? 0) > 9
+              ? '9+'
+              : String(user.unread_notifications_count ?? 0);
           return (
             <Link
               key={href}
@@ -87,7 +93,14 @@ export default function HubNavLinks({
               <Icon
                 className={active ? 'text-[var(--color-brand)]' : 'text-[var(--color-hub-muted)]'}
               />
-              {label}
+              <span className="flex flex-1 items-center justify-between gap-2">
+                <span>{label}</span>
+                {showNotifBadge && (
+                  <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                    {notifBadgeText}
+                  </span>
+                )}
+              </span>
             </Link>
           );
         })}

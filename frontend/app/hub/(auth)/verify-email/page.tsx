@@ -36,7 +36,9 @@ function VerifyEmailForm() {
   const [recoveryPanel, setRecoveryPanel] = useState<RecoveryPanel>('none');
 
   useEffect(() => {
-    if (emailParam) setEmail(emailParam);
+    if (!emailParam) return;
+    const t = window.setTimeout(() => setEmail(emailParam), 0);
+    return () => window.clearTimeout(t);
   }, [emailParam]);
 
   const verifyToken = useCallback(async (value: string) => {
@@ -62,15 +64,24 @@ function VerifyEmailForm() {
 
   useEffect(() => {
     if (tokenFromUrl && !autoStarted) {
-      setAutoStarted(true);
-      setToken(tokenFromUrl);
-      void verifyToken(tokenFromUrl);
+      const t = window.setTimeout(() => {
+        setAutoStarted(true);
+        setToken(tokenFromUrl);
+        void verifyToken(tokenFromUrl);
+      }, 0);
+      return () => window.clearTimeout(t);
     } else if (justRegistered && !message && !tokenFromUrl) {
-      setMessage(
-        'We sent a verification link to your email. Check your inbox and spam folder — the link expires in 24 hours.',
+      const t = window.setTimeout(
+        () =>
+          setMessage(
+            'We sent a verification link to your email. Check your inbox and spam folder — the link expires in 24 hours.',
+          ),
+        0,
       );
+      return () => window.clearTimeout(t);
     } else if (unverified && !message) {
-      setMessage('Your account is not verified yet. Resend the link below.');
+      const t = window.setTimeout(() => setMessage('Your account is not verified yet. Resend the link below.'), 0);
+      return () => window.clearTimeout(t);
     }
   }, [tokenFromUrl, justRegistered, unverified, autoStarted, verifyToken, message]);
 

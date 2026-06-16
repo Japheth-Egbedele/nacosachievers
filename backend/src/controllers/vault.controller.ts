@@ -142,6 +142,16 @@ export async function listPending(_req: Request, res: Response): Promise<void> {
   sendSuccess(res, data);
 }
 
+export async function moveUpload(req: Request, res: Response): Promise<void> {
+  const body = req.body as { course_id: string; title?: string };
+  await vaultService.adminMoveUpload({
+    uploadId: req.params.id!,
+    courseId: body.course_id,
+    title: body.title,
+  });
+  sendSuccess(res, null, HTTP_STATUS.OK);
+}
+
 export async function reviewUpload(req: Request, res: Response): Promise<void> {
   const body = req.body as {
     status: 'approved' | 'rejected';

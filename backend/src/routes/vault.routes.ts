@@ -9,6 +9,7 @@ import { requireMemberPortal } from '../middleware/require-member-portal.js';
 import { pdfUpload } from '../middleware/upload.middleware.js';
 import { validate } from '../middleware/validate.js';
 import { bulkApproveSchema, bulkDeleteSchema } from '../schemas/vault.schema.js';
+import { vaultFlagSchema } from '../schemas/vault-flag.schema.js';
 import * as vaultController from '../controllers/vault.controller.js';
 
 const router = Router();
@@ -77,6 +78,14 @@ router.delete('/uploads/:id', authMiddleware, catchAsync(requireActiveUser), req
 
 router.get('/pending', authMiddleware, catchAsync(requireActiveUser), requireExecutive, vaultScope, catchAsync(vaultController.listPending));
 router.get('/treasury-summary', authMiddleware, catchAsync(requireActiveUser), requireExecutive, vaultScope, catchAsync(vaultController.getTreasurySummary));
+router.patch(
+  '/uploads/:id',
+  authMiddleware,
+  catchAsync(requireActiveUser),
+  requireExecutive,
+  vaultScope,
+  catchAsync(vaultController.moveUpload),
+);
 router.get(
   '/uploads/:id/preview',
   authMiddleware,
@@ -111,7 +120,14 @@ router.patch(
   vaultScope,
   catchAsync(vaultController.reviewUpload),
 );
-router.post('/uploads/:id/flag', authMiddleware, catchAsync(requireActiveUser), requireMemberPortal, catchAsync(vaultController.flagUpload));
+router.post(
+  '/uploads/:id/flag',
+  authMiddleware,
+  catchAsync(requireActiveUser),
+  requireMemberPortal,
+  validate(vaultFlagSchema),
+  catchAsync(vaultController.flagUpload),
+);
 router.get('/flags', authMiddleware, catchAsync(requireActiveUser), requireExecutive, vaultScope, catchAsync(vaultController.listFlags));
 router.patch(
   '/flags/:id/resolve',

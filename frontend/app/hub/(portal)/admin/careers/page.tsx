@@ -30,7 +30,8 @@ export default function AdminCareersPage() {
   };
 
   useEffect(() => {
-    load();
+    const t = window.setTimeout(() => load(), 0);
+    return () => window.clearTimeout(t);
   }, []);
 
   async function verify(id: string, status: 'verified' | 'rejected') {

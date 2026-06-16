@@ -8,7 +8,7 @@ import CandidatePhoto from '@/app/hub/components/elections/CandidatePhoto';
 import { SpinnerCenter } from '@/app/components/Spinner';
 import HubAlert from '@/app/hub/components/ui/HubAlert';
 import { IconChevronLeft } from '@/app/hub/components/ui/HubIcons';
-import { hubBtnPrimary, hubLink } from '@/lib/hub-styles';
+import { hubBtnPrimary } from '@/lib/hub-styles';
 import type { ElectionPosition, ElectionResultsPayload } from '@/lib/election-types';
 import { apiFetch, ApiClientError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';

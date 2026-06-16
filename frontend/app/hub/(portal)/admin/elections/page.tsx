@@ -68,7 +68,9 @@ export default function AdminElectionsPage() {
   }, [loading, isAdmin, router]);
 
   useEffect(() => {
-    if (isAdmin) loadElections();
+    if (!isAdmin) return;
+    const t = window.setTimeout(() => loadElections(), 0);
+    return () => window.clearTimeout(t);
   }, [isAdmin, loadElections]);
 
   useEffect(() => {

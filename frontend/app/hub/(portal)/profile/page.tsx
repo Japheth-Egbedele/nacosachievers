@@ -6,7 +6,7 @@ import { SpinnerCenter } from '@/app/components/Spinner';
 import HubAlert from '@/app/hub/components/ui/HubAlert';
 import HubField, { HubTextInput } from '@/app/hub/components/ui/HubField';
 import HubPageHeader from '@/app/hub/components/ui/HubPageHeader';
-import { hubBtnPrimary, hubBtnSecondary } from '@/lib/hub-styles';
+import { hubBtnPrimary } from '@/lib/hub-styles';
 import { apiFetch, ApiClientError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
@@ -59,7 +59,8 @@ export default function ProfilePage() {
   }, []);
 
   useEffect(() => {
-    void load();
+    const t = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(t);
   }, [load]);
 
   async function saveProfile(e: React.FormEvent) {

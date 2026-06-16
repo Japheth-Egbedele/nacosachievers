@@ -626,13 +626,42 @@ export async function deleteUpload(uploadId: string, userId: string, isAdmin: bo
 export async function listPending() {
   const { data, error } = await getSupabase()
     .from('vault_uploads')
-    .select('*, users!vault_uploads_uploader_id_fkey(display_name, matric_number)')
+    .select('*, users!vault_uploads_uploader_id_fkey(display_name, matric_number), vault_courses(course_code, course_name, level, semester, units)')
     .eq('status', 'pending')
     .order('created_at');
   if (error) throw error;
 
   const filesMap = await loadUploadFiles((data ?? []).map((u) => u.id));
   return (data ?? []).map((u) => enrichUpload(u, filesMap));
+}
+
+export async function adminMoveUpload(input: {
+  uploadId: string;
+  courseId: string;
+  title?: string;
+}): Promise<void> {
+  const { data: upload } = await getSupabase()
+    .from('vault_uploads')
+    .select('id, status')
+    .eq('id', input.uploadId)
+    .maybeSingle();
+  if (!upload) throw new NotFoundError('Upload not found');
+
+  const { data: course } = await getSupabase()
+    .from('vault_courses')
+    .select('id')
+    .eq('id', input.courseId)
+    .maybeSingle();
+  if (!course) throw new NotFoundError('Course not found');
+
+  const payload: Record<string, unknown> = {
+    course_id: input.courseId,
+    updated_at: new Date().toISOString(),
+  };
+  if (input.title !== undefined) payload.title = input.title.trim();
+
+  const { error } = await getSupabase().from('vault_uploads').update(payload).eq('id', input.uploadId);
+  if (error) throw error;
 }
 
 export async function getAdminPreviewUrls(uploadId: string) {

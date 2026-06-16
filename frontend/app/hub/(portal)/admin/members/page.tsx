@@ -118,15 +118,19 @@ function AdminMembersContent() {
   }, [loadStats, loadMembers]);
 
   useEffect(() => {
-    setScope(normalizeMemberScope(searchParams.get('scope')));
-    setLevel(normalizeLevelFilter(searchParams.get('level')));
-    const p = Number(searchParams.get('page'));
-    setPage(Number.isFinite(p) && p > 0 ? p : 1);
-    setSearch(searchParams.get('q') ?? '');
+    const t = window.setTimeout(() => {
+      setScope(normalizeMemberScope(searchParams.get('scope')));
+      setLevel(normalizeLevelFilter(searchParams.get('level')));
+      const p = Number(searchParams.get('page'));
+      setPage(Number.isFinite(p) && p > 0 ? p : 1);
+      setSearch(searchParams.get('q') ?? '');
+    }, 0);
+    return () => window.clearTimeout(t);
   }, [searchParams]);
 
   useEffect(() => {
-    refresh();
+    const t = window.setTimeout(() => refresh(), 0);
+    return () => window.clearTimeout(t);
   }, [refresh]);
 
   const levelTabs = useMemo(() => {
