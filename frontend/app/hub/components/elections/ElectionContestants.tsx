@@ -46,9 +46,10 @@ export default function ElectionContestants({
                     <input
                       type="radio"
                       name={`position-${pos.id}`}
-                      checked={
-                        selected[pos.id]?.kind === 'candidate' && selected[pos.id]?.id === c.id
-                      }
+                      checked={(() => {
+                        const pick = selected[pos.id];
+                        return pick?.kind === 'candidate' && pick.id === c.id;
+                      })()}
                       onChange={() => onPickCandidate?.(pos.id, c.id)}
                       className="mt-5 shrink-0"
                     />
