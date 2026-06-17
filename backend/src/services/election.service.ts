@@ -581,7 +581,7 @@ export async function updateElection(
     assertElectionStartLeadTime(nextStart);
   }
   if (updates.end_date !== undefined && election.status === 'active') {
-    if (new Date(nextEnd) <= Date.now()) {
+    if (new Date(nextEnd).getTime() <= Date.now()) {
       throw new ValidationError('End time must be in the future while voting is open');
     }
   }
