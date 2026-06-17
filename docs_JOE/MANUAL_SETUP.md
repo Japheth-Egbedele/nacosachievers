@@ -194,6 +194,12 @@ create table onboarding_pins (
 );
 ```
 
+Optional — encrypted recovery copy for admin PIN registry (requires `PIN_RECOVERY_ENCRYPTION_KEY` on the API):
+
+```sql
+alter table onboarding_pins add column if not exists pin_ciphertext text;
+```
+
 ### 2.7 — Auth Support Tables
 ```sql
 create table email_verifications (

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import CopyButton from '@/app/components/CopyButton';
 import HubAlert from '@/app/hub/components/ui/HubAlert';
 import HubField, { HubTextInput } from '@/app/hub/components/ui/HubField';
@@ -27,6 +27,24 @@ import { useAuth } from '@/lib/auth-context';
 type PinMode = 'student' | 'staff';
 type ModalStep = 'form' | 'results';
 
+type PinRegistryRow = {
+  id: string;
+  matric_number: string;
+  staff_email: string | null;
+  expires_at: string;
+  is_used: boolean;
+  is_active: boolean;
+  is_expired: boolean;
+  level_of_entry: string | null;
+  created_at: string;
+  has_recovery: boolean;
+  can_reveal: boolean;
+};
+
+type RevealedPin = IssuedPinResult & {
+  expires_at: string;
+};
+
 const MAX_ROWS = 10;
 
 export default function AdminPinsPage() {
@@ -44,24 +62,16 @@ export default function AdminPinsPage() {
   const [busy, setBusy] = useState(false);
   const [issued, setIssued] = useState<IssuedPinResult[]>([]);
   const [pinExpiryDays, setPinExpiryDays] = useState(14);
-  const [recentPins, setRecentPins] = useState<
-    Array<{
-      id: string;
-      matric_number: string;
-      staff_email: string | null;
-      expires_at: string;
-      is_used: boolean;
-      is_active: boolean;
-      is_expired: boolean;
-      level_of_entry: string | null;
-      created_at: string;
-    }>
-  >([]);
+  const [recentPins, setRecentPins] = useState<PinRegistryRow[]>([]);
+  const [pinRecoveryEnabled, setPinRecoveryEnabled] = useState(false);
+  const [registrySearch, setRegistrySearch] = useState('');
+  const [revealedPin, setRevealedPin] = useState<RevealedPin | null>(null);
+  const [revealBusy, setRevealBusy] = useState(false);
 
   const allowed = isAdmin && canIssuePins;
 
   function loadRecentPins() {
-    void apiFetch<{ pins: typeof recentPins }>('/admin/pins')
+    void apiFetch<{ pins: PinRegistryRow[] }>('/admin/pins')
       .then((d) => setRecentPins(d.pins))
       .catch(() => setRecentPins([]));
   }
@@ -76,11 +86,36 @@ export default function AdminPinsPage() {
 
   useEffect(() => {
     if (!allowed) return;
-    void apiFetch<{ pin_expiry_days: number }>('/admin/pins/config')
-      .then((c) => setPinExpiryDays(c.pin_expiry_days))
+    void apiFetch<{ pin_expiry_days: number; pin_recovery_enabled?: boolean }>('/admin/pins/config')
+      .then((c) => {
+        setPinExpiryDays(c.pin_expiry_days);
+        setPinRecoveryEnabled(Boolean(c.pin_recovery_enabled));
+      })
       .catch(() => setPinExpiryDays(14));
     loadRecentPins();
   }, [allowed]);
+
+  const filteredPins = useMemo(() => {
+    const q = registrySearch.trim().toLowerCase();
+    if (!q) return recentPins;
+    return recentPins.filter((pin) => {
+      const credential = (pin.staff_email ?? pin.matric_number).toLowerCase();
+      return credential.includes(q);
+    });
+  }, [recentPins, registrySearch]);
+
+  async function revealPin(pinId: string) {
+    setError('');
+    setRevealBusy(true);
+    try {
+      const data = await apiFetch<RevealedPin>(`/admin/pins/${pinId}/reveal`);
+      setRevealedPin(data);
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Failed to reveal PIN');
+    } finally {
+      setRevealBusy(false);
+    }
+  }
 
   async function invalidatePin(pinId: string) {
     if (!confirm('Invalidate this unused PIN? It cannot be used for registration.')) return;
@@ -268,10 +303,10 @@ export default function AdminPinsPage() {
   if (loading || !allowed) return null;
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-4xl">
       <HubPageHeader
         title="Issue onboarding PINs"
-        description="Generate up to 10 student or staff PINs at once (staff: super admin only). Share credentials once — they are shown only once."
+        description="Generate PINs for students and staff, then recover active credentials from the registry if delivery fails."
       />
 
       <div className="hub-card p-6">
@@ -279,31 +314,69 @@ export default function AdminPinsPage() {
           Use the batch issuer for NACOS reps onboarding many students. Each row can have its own
           matric, department, level, and optional admission year. Unused PINs expire after{' '}
           <strong>{pinExpiryDays} days</strong> (super admin can change this in Admin → Settings).
+          {pinRecoveryEnabled
+            ? ' Active PINs stay recoverable from the registry below until they are used or invalidated.'
+            : ' Ask your super admin to set PIN_RECOVERY_ENCRYPTION_KEY on the API so issued PINs can be recovered later.'}
         </p>
         <button type="button" onClick={openModal} className={`${hubBtnPrimary} mt-4 w-auto px-6`}>
           Issue PIN(s)
         </button>
       </div>
 
-      {recentPins.length > 0 && (
-        <div className="hub-card mt-6 overflow-x-auto p-4">
-          <h2 className="text-sm font-semibold text-[var(--color-hub-text)]">Recent PINs</h2>
-          <table className="mt-3 w-full min-w-[32rem] text-left text-sm">
+      {error && !modalOpen && (
+        <HubAlert variant="error" className="mt-4">
+          {error}
+        </HubAlert>
+      )}
+
+      <div className="hub-card mt-6 overflow-x-auto p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-[var(--color-hub-text)]">PIN registry</h2>
+            <p className="mt-1 text-xs text-[var(--color-hub-text-secondary)]">
+              Search issued PINs and reveal active credentials for members who did not receive them.
+            </p>
+          </div>
+          <div className="w-full sm:max-w-xs">
+            <HubField label="Search">
+              <HubTextInput
+                value={registrySearch}
+                onChange={(e) => setRegistrySearch(e.target.value)}
+                placeholder="Matric or email"
+              />
+            </HubField>
+          </div>
+        </div>
+
+        {recentPins.length === 0 ? (
+          <p className="mt-6 text-sm text-zinc-500">No PINs issued yet.</p>
+        ) : filteredPins.length === 0 ? (
+          <p className="mt-6 text-sm text-zinc-500">No PINs match your search.</p>
+        ) : (
+          <table className="mt-4 w-full min-w-[40rem] text-left text-sm">
             <thead>
               <tr className="text-xs uppercase text-zinc-500">
                 <th className="pb-2 pr-3">Credential</th>
                 <th className="pb-2 pr-3">Level</th>
+                <th className="pb-2 pr-3">Issued</th>
+                <th className="pb-2 pr-3">Expires</th>
                 <th className="pb-2 pr-3">Status</th>
-                <th className="pb-2">Action</th>
+                <th className="pb-2">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {recentPins.map((pin) => (
+              {filteredPins.map((pin) => (
                 <tr key={pin.id} className="border-t border-[var(--color-hub-border)]">
                   <td className="py-2 pr-3 font-mono text-xs">
                     {pin.staff_email ?? pin.matric_number}
                   </td>
                   <td className="py-2 pr-3">{pin.level_of_entry ?? '—'}</td>
+                  <td className="py-2 pr-3 text-xs text-zinc-500">
+                    {new Date(pin.created_at).toLocaleString()}
+                  </td>
+                  <td className="py-2 pr-3 text-xs text-zinc-500">
+                    {new Date(pin.expires_at).toLocaleString()}
+                  </td>
                   <td className="py-2 pr-3">
                     {pin.is_used
                       ? 'Used'
@@ -314,22 +387,37 @@ export default function AdminPinsPage() {
                           : 'Inactive'}
                   </td>
                   <td className="py-2">
-                    {pin.is_active && (
-                      <button
-                        type="button"
-                        onClick={() => invalidatePin(pin.id)}
-                        className="text-xs font-medium text-red-600 hover:underline"
-                      >
-                        Invalidate
-                      </button>
-                    )}
+                    <div className="flex flex-wrap gap-2">
+                      {pin.can_reveal && (
+                        <button
+                          type="button"
+                          disabled={revealBusy}
+                          onClick={() => revealPin(pin.id)}
+                          className="text-xs font-medium text-emerald-700 hover:underline"
+                        >
+                          Reveal PIN
+                        </button>
+                      )}
+                      {pin.is_active && !pin.has_recovery && (
+                        <span className="text-xs text-zinc-500">No recovery copy</span>
+                      )}
+                      {pin.is_active && (
+                        <button
+                          type="button"
+                          onClick={() => invalidatePin(pin.id)}
+                          className="text-xs font-medium text-red-600 hover:underline"
+                        >
+                          Invalidate
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      )}
+        )}
+      </div>
 
       <HubModal
         open={modalOpen}
@@ -625,6 +713,39 @@ export default function AdminPinsPage() {
                 Done
               </button>
             </div>
+          </div>
+        )}
+      </HubModal>
+
+      <HubModal
+        open={revealedPin !== null}
+        onClose={() => setRevealedPin(null)}
+        title="Recovered PIN"
+        description="This reveal is logged in the audit trail. Share the credential securely with the member."
+        size="md"
+      >
+        {revealedPin && (
+          <div className="space-y-4">
+            <div className="overflow-hidden rounded-xl border-2 border-[var(--color-brand)]/40">
+              <div className="bg-gradient-to-r from-[#0f172a] to-[#047857] px-4 py-3 text-white">
+                <p className="font-mono text-sm font-bold">
+                  {revealedPin.staff_email ?? revealedPin.matric_number}
+                </p>
+                <p className="mt-1 font-mono text-2xl tracking-[0.2em] text-emerald-200">
+                  {revealedPin.pin}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 p-3">
+                <CopyButton value={revealedPin.pin} label="Copy PIN" />
+                <CopyButton value={pinCredentialBlock(revealedPin)} label="Copy row details" />
+              </div>
+            </div>
+            <p className="text-xs text-zinc-500">
+              Expires {new Date(revealedPin.expires_at).toLocaleString()}
+            </p>
+            <button type="button" onClick={() => setRevealedPin(null)} className={hubBtnSecondary}>
+              Close
+            </button>
           </div>
         )}
       </HubModal>

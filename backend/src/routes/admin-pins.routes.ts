@@ -14,6 +14,7 @@ router.use(authMiddleware, catchAsync(requireActiveUser), catchAsync(requirePinI
 
 router.get('/', catchAsync(adminPinsController.listPins));
 router.get('/config', catchAsync(adminPinsController.getPinConfig));
+router.get('/:id/reveal', catchAsync(adminPinsController.revealPin));
 router.post('/generate', catchAsync(adminPinsController.generatePin));
 router.post(
   '/generate-bulk',

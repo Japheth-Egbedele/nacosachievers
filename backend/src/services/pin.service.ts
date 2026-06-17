@@ -6,6 +6,11 @@ import { getSupabase } from '../config/supabase.js';
 import { ForbiddenError, ValidationError } from '../utils/errors.js';
 import { addHours } from 'date-fns';
 import * as settingsService from './settings.service.js';
+import {
+  decryptPinFromRecovery,
+  encryptPinForRecovery,
+  isPinRecoveryEnabled,
+} from '../utils/pin-crypto.js';
 
 const PIN_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -143,6 +148,7 @@ export async function createPin(params: {
 
   const plain = generatePlainPin();
   const pinHash = await hashPin(plain);
+  const pinCiphertext = encryptPinForRecovery(plain);
   const expiryHours = await settingsService.getPinExpiryHours();
   const expiresAt = addHours(new Date(), expiryHours).toISOString();
 
@@ -155,6 +161,7 @@ export async function createPin(params: {
     .from('onboarding_pins')
     .insert({
       pin_hash: pinHash,
+      pin_ciphertext: pinCiphertext,
       matric_number: matricNumber,
       staff_email: staffEmail,
       created_by: params.createdBy,
@@ -194,7 +201,11 @@ export async function getActivePinById(pinId: string): Promise<OnboardingPinRow 
 export async function markPinUsed(pinId: string): Promise<void> {
   await getSupabase()
     .from('onboarding_pins')
-    .update({ is_used: true, used_at: new Date().toISOString() })
+    .update({
+      is_used: true,
+      used_at: new Date().toISOString(),
+      pin_ciphertext: null,
+    })
     .eq('id', pinId);
 }
 
@@ -219,7 +230,7 @@ export async function invalidatePin(
 
   await getSupabase()
     .from('onboarding_pins')
-    .update({ expires_at: new Date().toISOString() })
+    .update({ expires_at: new Date().toISOString(), pin_ciphertext: null })
     .eq('id', pinId);
 }
 
@@ -247,6 +258,8 @@ export interface PinListRow {
   created_at: string;
   is_expired: boolean;
   is_active: boolean;
+  has_recovery: boolean;
+  can_reveal: boolean;
 }
 
 /** Lists recent PINs for the issuer (super admin sees all). */
@@ -258,7 +271,7 @@ export async function listPinsForActor(
   let query = getSupabase()
     .from('onboarding_pins')
     .select(
-      'id, matric_number, staff_email, department_id, created_by, expires_at, is_used, used_at, level_of_entry, year_of_admission, admission_type, created_at',
+      'id, matric_number, staff_email, department_id, created_by, expires_at, is_used, used_at, level_of_entry, year_of_admission, admission_type, created_at, pin_ciphertext',
     )
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -271,11 +284,92 @@ export async function listPinsForActor(
   if (error) throw error;
 
   const now = Date.now();
-  return (data ?? []).map((row) => ({
-    ...(row as Omit<PinListRow, 'is_expired' | 'is_active'>),
-    is_expired: !row.is_used && new Date(row.expires_at as string).getTime() <= now,
-    is_active: !row.is_used && new Date(row.expires_at as string).getTime() > now,
-  }));
+  return (data ?? []).map((row) => {
+    const record = row as Omit<PinListRow, 'is_expired' | 'is_active' | 'has_recovery' | 'can_reveal'> & {
+      pin_ciphertext: string | null;
+    };
+    const isExpired = !record.is_used && new Date(record.expires_at).getTime() <= now;
+    const isActive = !record.is_used && new Date(record.expires_at).getTime() > now;
+    const hasRecovery = Boolean(record.pin_ciphertext);
+    return {
+      id: record.id,
+      matric_number: record.matric_number,
+      staff_email: record.staff_email,
+      department_id: record.department_id,
+      created_by: record.created_by,
+      expires_at: record.expires_at,
+      is_used: record.is_used,
+      used_at: record.used_at,
+      level_of_entry: record.level_of_entry,
+      year_of_admission: record.year_of_admission,
+      admission_type: record.admission_type,
+      created_at: record.created_at,
+      is_expired: isExpired,
+      is_active: isActive,
+      has_recovery: hasRecovery,
+      can_reveal: isActive && hasRecovery,
+    };
+  });
+}
+
+export async function revealPinForActor(
+  pinId: string,
+  actorId: string,
+  isSuperAdmin: boolean,
+): Promise<{
+  id: string;
+  pin: string;
+  matric_number: string;
+  staff_email: string | null;
+  level_of_entry: string | null;
+  expires_at: string;
+}> {
+  const { data, error } = await getSupabase()
+    .from('onboarding_pins')
+    .select(
+      'id, matric_number, staff_email, created_by, expires_at, is_used, level_of_entry, pin_ciphertext',
+    )
+    .eq('id', pinId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) {
+    throw new ValidationError('PIN not found', 'PIN_NOT_FOUND');
+  }
+
+  if (!isSuperAdmin && data.created_by !== actorId) {
+    throw new ForbiddenError('You can only reveal PINs you issued');
+  }
+
+  if (data.is_used) {
+    throw new ValidationError(ERROR_MESSAGES.PIN_ALREADY_USED, 'PIN_ALREADY_USED');
+  }
+
+  if (new Date(data.expires_at as string).getTime() <= Date.now()) {
+    throw new ValidationError(ERROR_MESSAGES.PIN_EXPIRED, 'PIN_EXPIRED');
+  }
+
+  if (!data.pin_ciphertext) {
+    throw new ValidationError(
+      'This PIN was issued before recovery was enabled. Invalidate it and issue a new PIN.',
+      'PIN_RECOVERY_UNAVAILABLE',
+    );
+  }
+
+  const pin = decryptPinFromRecovery(data.pin_ciphertext as string);
+
+  return {
+    id: data.id as string,
+    pin,
+    matric_number: data.matric_number as string,
+    staff_email: (data.staff_email as string | null) ?? null,
+    level_of_entry: (data.level_of_entry as string | null) ?? null,
+    expires_at: data.expires_at as string,
+  };
+}
+
+export function getPinRecoveryStatus(): { enabled: boolean } {
+  return { enabled: isPinRecoveryEnabled() };
 }
 
 /** @deprecated Use validatePinByMatric */

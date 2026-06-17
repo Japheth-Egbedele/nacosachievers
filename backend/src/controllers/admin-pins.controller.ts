@@ -208,6 +208,28 @@ export async function generatePinBulkStaff(req: Request, res: Response): Promise
 }
 
 /**
+ * GET /admin/pins/:id/reveal — recover an active unused PIN (audited).
+ */
+export async function revealPin(req: Request, res: Response): Promise<void> {
+  const isSuperAdmin = req.user!.role === 'super_admin';
+  const data = await pinService.revealPinForActor(req.params.id!, req.user!.id, isSuperAdmin);
+
+  await auditService.logAudit({
+    actorId: req.user!.id,
+    action: 'pin_revealed',
+    entityType: 'onboarding_pin',
+    entityId: data.id,
+    metadata: {
+      matric_number: data.matric_number,
+      staff_email: data.staff_email,
+    },
+    ipAddress: req.ip,
+  });
+
+  sendSuccess(res, data, HTTP_STATUS.OK, 'PIN revealed. Share securely.');
+}
+
+/**
  * GET /admin/pins — recent PINs for the issuer.
  */
 export async function listPins(req: Request, res: Response): Promise<void> {
@@ -222,7 +244,12 @@ export async function listPins(req: Request, res: Response): Promise<void> {
  */
 export async function getPinConfig(_req: Request, res: Response): Promise<void> {
   const pin_expiry_hours = await settingsService.getPinExpiryHours();
-  sendSuccess(res, { pin_expiry_hours, pin_expiry_days: Math.round(pin_expiry_hours / 24) });
+  const recovery = pinService.getPinRecoveryStatus();
+  sendSuccess(res, {
+    pin_expiry_hours,
+    pin_expiry_days: Math.round(pin_expiry_hours / 24),
+    pin_recovery_enabled: recovery.enabled,
+  });
 }
 
 /**
