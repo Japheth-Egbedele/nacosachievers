@@ -5,7 +5,6 @@ import {
   IconAdmin,
   IconBell,
   IconElections,
-  IconKey,
   IconLogout,
   IconMessages,
   IconUser,
@@ -33,23 +32,24 @@ type HubNavLinksProps = {
   pathname: string;
   user: AuthUser;
   greeting: ReturnType<typeof getHubGreeting>;
-  isAdmin: boolean;
   isStaff: boolean;
-  canIssuePins: boolean;
   onNavigate?: () => void;
   onLogout: () => void;
 };
+
+function userCanSeeAdminPortal(user: AuthUser): boolean {
+  return user.role === 'super_admin' || user.role === 'executive';
+}
 
 export default function HubNavLinks({
   pathname,
   user,
   greeting,
-  isAdmin,
   isStaff,
-  canIssuePins,
   onNavigate,
   onLogout,
 }: HubNavLinksProps) {
+  const showAdminPortal = userCanSeeAdminPortal(user);
   const displayName =
     user.first_name?.trim() ||
     user.display_name?.split(' ')[0] ||
@@ -104,23 +104,7 @@ export default function HubNavLinks({
             </Link>
           );
         })}
-        {canIssuePins && !isStaff && (
-          <Link
-            href="/hub/admin/pins"
-            onClick={onNavigate}
-            className={navLinkClass(navActive(pathname, '/hub/admin/pins'))}
-          >
-            <IconKey
-              className={
-                navActive(pathname, '/hub/admin/pins')
-                  ? 'text-[var(--color-brand)]'
-                  : 'text-[var(--color-hub-muted)]'
-              }
-            />
-            Issue PINs
-          </Link>
-        )}
-        {isAdmin && !isStaff && (
+        {showAdminPortal && (
           <>
             <p className="mt-6 px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
               Chapter

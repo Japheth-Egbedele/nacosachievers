@@ -61,32 +61,23 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const pathname = usePathname();
   const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const pinOnlyIssuer = canIssuePins && !isAdmin;
   const adminScopes = (user?.admin_scopes ?? []) as AdminScope[];
   const links = filterAdminNav(isSuperAdmin, canIssuePins, isAdmin, adminScopes);
-  const canAccessAdmin = isAdmin || canIssuePins;
   const activeLabel = links.find((item) => navActive(pathname ?? '', item.href))?.label ?? 'Admin';
 
   useEffect(() => {
-    if (loading || !pathname || !canAccessAdmin) return;
+    if (loading || !pathname || !isAdmin) return;
     if (!isAdminPathAllowed(pathname, isSuperAdmin, canIssuePins, isAdmin, adminScopes)) {
       const fallback = links[0]?.href ?? '/hub/elections';
       router.replace(fallback);
     }
-  }, [loading, pathname, canAccessAdmin, isSuperAdmin, canIssuePins, isAdmin, adminScopes, links, router]);
-
-  useEffect(() => {
-    if (loading || !pinOnlyIssuer || !pathname) return;
-    const onPins =
-      pathname === '/hub/admin/pins' || pathname.startsWith('/hub/admin/pins/');
-    if (!onPins) router.replace('/hub/admin/pins');
-  }, [loading, pinOnlyIssuer, pathname, router]);
+  }, [loading, pathname, isAdmin, isSuperAdmin, canIssuePins, adminScopes, links, router]);
 
   if (loading) {
     return <SpinnerCenter label="Loading admin…" />;
   }
 
-  if (!canAccessAdmin) {
+  if (!isAdmin) {
     router.replace('/hub/elections');
     return null;
   }

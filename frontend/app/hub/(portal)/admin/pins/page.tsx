@@ -30,7 +30,7 @@ type ModalStep = 'form' | 'results';
 const MAX_ROWS = 10;
 
 export default function AdminPinsPage() {
-  const { isSuperAdmin, canIssuePins, loading } = useAuth();
+  const { isSuperAdmin, isAdmin, canIssuePins, loading } = useAuth();
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
   const [step, setStep] = useState<ModalStep>('form');
@@ -58,7 +58,7 @@ export default function AdminPinsPage() {
     }>
   >([]);
 
-  const allowed = canIssuePins;
+  const allowed = isAdmin && canIssuePins;
 
   function loadRecentPins() {
     void apiFetch<{ pins: typeof recentPins }>('/admin/pins')

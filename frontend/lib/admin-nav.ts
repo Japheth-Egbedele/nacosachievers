@@ -29,17 +29,14 @@ export const ADMIN_NAV: AdminNavItem[] = [
   { href: '/hub/admin/audit', label: 'Audit log', scope: 'audit' },
 ];
 
-/** Pin-only issuers see only PINs. Executives are filtered by admin_scopes. */
+/** Scoped executives see nav items matching their admin_scopes. */
 export function filterAdminNav(
   isSuperAdmin: boolean,
   canIssuePins = false,
   isExecutive = false,
   adminScopes: AdminScope[] = [],
 ): AdminNavItem[] {
-  const pinOnlyIssuer = canIssuePins && !isSuperAdmin && !isExecutive;
-
   return ADMIN_NAV.filter((item) => {
-    if (pinOnlyIssuer) return item.pinIssuerOnly === true;
     if (item.superAdminOnly && !isSuperAdmin) return false;
     if (item.pinIssuerOnly && !isSuperAdmin && !canIssuePins) return false;
     if (item.scope && isExecutive && !isSuperAdmin) {
@@ -57,10 +54,7 @@ export function isAdminPathAllowed(
   isExecutive: boolean,
   adminScopes: AdminScope[] = [],
 ): boolean {
-  const pinOnlyIssuer = canIssuePins && !isSuperAdmin && !isExecutive;
-  if (pinOnlyIssuer) {
-    return pathname === '/hub/admin/pins' || pathname.startsWith('/hub/admin/pins/');
-  }
+  if (!isExecutive && !isSuperAdmin) return false;
   if (pathname === '/hub/admin' || pathname === '/hub/admin/') return true;
   const links = filterAdminNav(isSuperAdmin, canIssuePins, isExecutive, adminScopes);
   return links.some(

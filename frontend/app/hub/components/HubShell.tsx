@@ -12,7 +12,7 @@ import { isStaffPortalPath } from '@/lib/staff-portal';
 import { useAuth } from '@/lib/auth-context';
 
 export default function HubShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, logout, isAdmin, isStaff, canIssuePins } = useAuth();
+  const { user, loading, logout, isAdmin, isStaff } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const greeting = getHubGreeting(user);
@@ -24,10 +24,14 @@ export default function HubShell({ children }: { children: React.ReactNode }) {
       router.replace('/hub/login');
       return;
     }
+    if (!isAdmin && pathname?.startsWith('/hub/admin')) {
+      router.replace('/hub/elections');
+      return;
+    }
     if (isStaff && pathname && !isStaffPortalPath(pathname)) {
       router.replace('/hub/elections');
     }
-  }, [loading, user, isStaff, pathname, router]);
+  }, [loading, user, isAdmin, isStaff, pathname, router]);
 
   if (loading) {
     return (
@@ -54,9 +58,7 @@ export default function HubShell({ children }: { children: React.ReactNode }) {
     pathname: pathname ?? '',
     user,
     greeting,
-    isAdmin,
     isStaff,
-    canIssuePins,
     onLogout: handleLogout,
   };
 
