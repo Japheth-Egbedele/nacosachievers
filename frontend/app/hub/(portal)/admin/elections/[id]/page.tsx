@@ -4,8 +4,10 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ElectionResultsReport from '@/app/hub/components/elections/ElectionResultsReport';
+import ElectionCountdown from '@/app/hub/components/elections/ElectionCountdown';
 import CandidatePhoto from '@/app/hub/components/elections/CandidatePhoto';
 import { SpinnerCenter } from '@/app/components/Spinner';
+import { minStartDatetimeLocal, toDatetimeLocalValue } from '@/lib/election-countdown';
 import type { ElectionAnalytics, ElectionPosition } from '@/lib/election-types';
 import { apiFetch, ApiClientError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -47,6 +49,9 @@ export default function AdminElectionDetailPage() {
   const [contestantForms, setContestantForms] = useState<
     Record<string, { name: string; manifesto: string; photo: File | null; photoPreview: string | null }>
   >({});
+  const [scheduleStart, setScheduleStart] = useState('');
+  const [scheduleEnd, setScheduleEnd] = useState('');
+  const [scheduleBusy, setScheduleBusy] = useState(false);
 
   const loadSetup = useCallback(() => {
     if (!id) return;
@@ -90,6 +95,39 @@ export default function AdminElectionDetailPage() {
     const t = window.setTimeout(() => setTab('results'), 0);
     return () => window.clearTimeout(t);
   }, [setup?.election.status]);
+
+  useEffect(() => {
+    if (!setup) return;
+    const t = window.setTimeout(() => {
+      setScheduleStart(toDatetimeLocalValue(setup.election.start_date));
+      setScheduleEnd(toDatetimeLocalValue(setup.election.end_date));
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [setup]);
+
+  async function saveSchedule(e: React.FormEvent) {
+    e.preventDefault();
+    if (!id || !setup) return;
+    setError('');
+    setScheduleBusy(true);
+    try {
+      const body: { start_date?: string; end_date?: string } = {
+        end_date: new Date(scheduleEnd).toISOString(),
+      };
+      if (setup.election.status === 'upcoming') {
+        body.start_date = new Date(scheduleStart).toISOString();
+      }
+      await apiFetch(`/admin/elections/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      });
+      loadSetup();
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.message : 'Failed to update schedule');
+    } finally {
+      setScheduleBusy(false);
+    }
+  }
 
   async function toggleRequireAll(checked: boolean) {
     if (!id || !setup?.can_edit_structure) return;
@@ -261,6 +299,9 @@ export default function AdminElectionDetailPage() {
           <p className="mt-2 text-xs text-zinc-500">
             {formatRange(election.start_date, election.end_date)}
           </p>
+          <div className="mt-4">
+            <ElectionCountdown startDate={election.start_date} endDate={election.end_date} size="sm" />
+          </div>
         </div>
         <span
           className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${statusStyles[election.status] ?? ''}`}
@@ -293,6 +334,54 @@ export default function AdminElectionDetailPage() {
 
       {tab === 'setup' && (
         <div className="mt-8 space-y-8">
+          <form
+            onSubmit={saveSchedule}
+            className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900"
+          >
+            <h2 className="font-semibold">Election schedule</h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              {election.status === 'upcoming'
+                ? 'Voting must start at least 24 hours from now. The countdown appears on the day before voting opens.'
+                : election.status === 'active'
+                  ? 'You can extend or adjust the closing time while voting is live.'
+                  : 'Schedule is locked after the election closes.'}
+            </p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-sm font-medium">Voting opens</label>
+                <input
+                  type="datetime-local"
+                  required
+                  disabled={election.status !== 'upcoming'}
+                  min={election.status === 'upcoming' ? minStartDatetimeLocal() : undefined}
+                  value={scheduleStart}
+                  onChange={(e) => setScheduleStart(e.target.value)}
+                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm disabled:bg-zinc-100 dark:border-zinc-700 dark:disabled:bg-zinc-800"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Voting closes</label>
+                <input
+                  type="datetime-local"
+                  required
+                  disabled={election.status === 'completed'}
+                  value={scheduleEnd}
+                  onChange={(e) => setScheduleEnd(e.target.value)}
+                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm disabled:bg-zinc-100 dark:border-zinc-700 dark:disabled:bg-zinc-800"
+                />
+              </div>
+            </div>
+            {election.status !== 'completed' && (
+              <button
+                type="submit"
+                disabled={scheduleBusy}
+                className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {scheduleBusy ? 'Saving…' : 'Save schedule'}
+              </button>
+            )}
+          </form>
+
           <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
             <h2 className="font-semibold">Ballot rules</h2>
             <label className="mt-3 flex cursor-pointer items-center gap-3 text-sm">

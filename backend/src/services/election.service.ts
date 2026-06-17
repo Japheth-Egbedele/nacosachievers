@@ -326,7 +326,7 @@ export async function getElectionDetail(electionId: string, userId: string) {
     contestable_positions: contestable.length,
     user_vote: ballotLocked ? userBallot : null,
     ballot_locked: ballotLocked,
-    can_vote: canVote,
+    can_vote: canVote && election.status === 'active' && !ballotLocked,
   };
 
   if (showCounts) {
@@ -501,6 +501,15 @@ export async function castVote(
   return getElectionDetail(electionId, userId);
 }
 
+const MIN_ELECTION_LEAD_MS = 24 * 60 * 60 * 1000;
+
+function assertElectionStartLeadTime(startDate: string) {
+  const start = new Date(startDate).getTime();
+  if (start < Date.now() + MIN_ELECTION_LEAD_MS) {
+    throw new ValidationError('Election must start at least 24 hours from now');
+  }
+}
+
 export async function createElection(
   createdBy: string,
   input: {
@@ -517,6 +526,7 @@ export async function createElection(
   if (new Date(input.start_date) >= new Date(input.end_date)) {
     throw new ValidationError('End date must be after start date');
   }
+  assertElectionStartLeadTime(input.start_date);
   if (input.scope === 'department' && !input.department_id) {
     throw new ValidationError('Department elections require a department');
   }
@@ -555,17 +565,25 @@ export async function updateElection(
   if (updates.require_all_positions !== undefined && election.status !== 'upcoming') {
     throw new ValidationError('Ballot rules can only be changed before the election goes live');
   }
-  if (
-    election.status !== 'upcoming' &&
-    (updates.start_date !== undefined || updates.end_date !== undefined)
-  ) {
-    throw new ValidationError('Election dates can only be changed before the election goes live');
+  if (updates.start_date !== undefined && election.status !== 'upcoming') {
+    throw new ValidationError('Start time can only be changed before voting opens');
+  }
+  if (updates.end_date !== undefined && election.status === 'completed') {
+    throw new ValidationError('End time cannot be changed after the election closes');
   }
 
   const nextStart = updates.start_date ?? election.start_date;
   const nextEnd = updates.end_date ?? election.end_date;
   if (new Date(nextStart) >= new Date(nextEnd)) {
     throw new ValidationError('End date must be after start date');
+  }
+  if (updates.start_date !== undefined) {
+    assertElectionStartLeadTime(nextStart);
+  }
+  if (updates.end_date !== undefined && election.status === 'active') {
+    if (new Date(nextEnd) <= Date.now()) {
+      throw new ValidationError('End time must be in the future while voting is open');
+    }
   }
 
   const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };

@@ -4,11 +4,12 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import ElectionResultsReport from '@/app/hub/components/elections/ElectionResultsReport';
+import ElectionContestants from '@/app/hub/components/elections/ElectionContestants';
+import ElectionCountdown from '@/app/hub/components/elections/ElectionCountdown';
 import CandidatePhoto from '@/app/hub/components/elections/CandidatePhoto';
 import { SpinnerCenter } from '@/app/components/Spinner';
 import HubAlert from '@/app/hub/components/ui/HubAlert';
 import { IconChevronLeft } from '@/app/hub/components/ui/HubIcons';
-import { hubBtnPrimary } from '@/lib/hub-styles';
 import type { ElectionPosition, ElectionResultsPayload } from '@/lib/election-types';
 import { apiFetch, ApiClientError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -114,6 +115,9 @@ export default function ElectionDetailPage() {
   const canVote =
     data.can_vote !== false && !isSuperAdmin && election.status === 'active' && !ballot_locked;
   const showResults = election.status === 'completed';
+  const showContestants =
+    (election.status === 'upcoming' || election.status === 'active') && contestable.length > 0;
+  const previewContestants = showContestants && !canVote;
 
   function pickCandidate(positionId: string, candidateId: string) {
     setSelected((prev) => ({ ...prev, [positionId]: { kind: 'candidate', id: candidateId } }));
@@ -164,9 +168,14 @@ export default function ElectionDetailPage() {
         All elections
       </Link>
       <h1 className="hub-display mt-4 text-3xl text-zinc-900 dark:text-white">{election.title}</h1>
-      <p className="mt-2 inline-flex rounded-full bg-emerald-50 px-3 py-0.5 text-xs font-bold uppercase tracking-wide text-emerald-800 ring-1 ring-emerald-200">
-        {election.status === 'active' ? 'Live' : election.status}
-      </p>
+      <div className="mt-4 flex flex-wrap items-center gap-4">
+        <p className="inline-flex rounded-full bg-emerald-50 px-3 py-0.5 text-xs font-bold uppercase tracking-wide text-emerald-800 ring-1 ring-emerald-200">
+          {election.status === 'active' ? 'Live' : election.status === 'completed' ? 'Closed' : election.status}
+        </p>
+        {election.status === 'completed' && (
+          <ElectionCountdown startDate={election.start_date} endDate={election.end_date} size="sm" />
+        )}
+      </div>
 
       {isStaff && election.status === 'active' && (
         <HubAlert variant="info" className="mt-6">
@@ -189,10 +198,27 @@ export default function ElectionDetailPage() {
         </HubAlert>
       )}
 
+      {previewContestants && (
+        <HubAlert variant="info" className="mt-6">
+          {election.status === 'upcoming'
+            ? 'Contestants are listed below. Voting opens when the countdown reaches zero.'
+            : ballot_locked
+              ? 'Your ballot is locked. Results publish when voting closes.'
+              : isStaff || isSuperAdmin
+                ? 'You can browse contestants here. Lecturers and admins cannot cast ballots.'
+                : 'Voting is not available on your account right now.'}
+        </HubAlert>
+      )}
+
       {error && <HubAlert variant="error" className="mt-4">{error}</HubAlert>}
 
       {canVote && (
         <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+          <ElectionCountdown
+            startDate={election.start_date}
+            endDate={election.end_date}
+            className="mb-4"
+          />
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
             Respond to <strong>every position</strong> — pick a contestant or choose{' '}
             <strong>None of the above</strong>
@@ -217,72 +243,28 @@ export default function ElectionDetailPage() {
         </div>
       )}
 
-      {canVote && (
-        <div className="mt-8 space-y-8">
-          {contestable.map((pos) => (
-            <section key={pos.id}>
-              <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">
-                {pos.title}
-              </h2>
-              <ul className="mt-3 space-y-2">
-                {pos.candidates.map((c) => (
-                  <li key={c.id}>
-                    <label className="flex cursor-pointer items-start gap-4 rounded-xl border border-zinc-200 p-4 transition has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 dark:border-zinc-700 dark:has-[:checked]:bg-emerald-950/30">
-                      <input
-                        type="radio"
-                        name={`position-${pos.id}`}
-                        checked={
-                          (() => {
-                            const pick = selected[pos.id];
-                            return pick?.kind === 'candidate' && pick.id === c.id;
-                          })()
-                        }
-                        onChange={() => pickCandidate(pos.id, c.id)}
-                        className="mt-5 shrink-0"
-                      />
-                      <CandidatePhoto name={c.name} imageUrl={c.image_url} size="md" className="mt-0.5" />
-                      <div className="min-w-0 flex-1">
-                        <span className="font-medium">{c.name}</span>
-                        {c.manifesto && (
-                          <p className="mt-1 text-sm text-zinc-500">{c.manifesto}</p>
-                        )}
-                      </div>
-                    </label>
-                  </li>
-                ))}
-                <li>
-                  <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-dashed border-zinc-300 p-4 transition has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50 dark:border-zinc-600 dark:has-[:checked]:bg-amber-950/20">
-                    <input
-                      type="radio"
-                      name={`position-${pos.id}`}
-                      checked={selected[pos.id]?.kind === 'abstain'}
-                      onChange={() => pickAbstain(pos.id)}
-                      className="mt-1"
-                    />
-                    <div>
-                      <span className="font-medium">None of the above</span>
-                      <p className="mt-1 text-sm text-zinc-500">
-                        Abstain from this position — your ballot still counts.
-                      </p>
-                    </div>
-                  </label>
-                </li>
-              </ul>
-            </section>
-          ))}
-
-          {contestable.length === 0 && (
-            <p className="text-sm text-zinc-500">No positions open for voting yet.</p>
+      {(canVote || previewContestants) && (
+        <div className="mt-8">
+          {previewContestants && election.status !== 'completed' && (
+            <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50/60 p-5 dark:border-emerald-900 dark:bg-emerald-950/20">
+              <ElectionCountdown startDate={election.start_date} endDate={election.end_date} />
+            </div>
           )}
-
-          <button
-            type="button"
-            disabled={!canSubmit || busy}
-            onClick={() => setConfirmOpen(true)}
-            className={`${hubBtnPrimary} w-auto px-8`}
-          >
-            Review & submit ballot
-          </button>
+          <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-100">
+            {canVote ? 'Cast your ballot' : 'Contestants'}
+          </h2>
+          <div className="mt-4">
+            <ElectionContestants
+              positions={data.positions}
+              mode={canVote ? 'vote' : 'preview'}
+              selected={selected}
+              onPickCandidate={pickCandidate}
+              onPickAbstain={pickAbstain}
+              canSubmit={canSubmit}
+              busy={busy}
+              onReviewSubmit={() => setConfirmOpen(true)}
+            />
+          </div>
         </div>
       )}
 

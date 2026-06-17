@@ -6,6 +6,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { SpinnerCenter } from '@/app/components/Spinner';
 import HubAlert from '@/app/hub/components/ui/HubAlert';
 import HubPageHeader from '@/app/hub/components/ui/HubPageHeader';
+import ElectionCountdown from '@/app/hub/components/elections/ElectionCountdown';
+import { minStartDatetimeLocal } from '@/lib/election-countdown';
 import AdminStatTile from '@/app/hub/components/admin/AdminStatTile';
 import { apiFetch, ApiClientError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -194,10 +196,14 @@ export default function AdminElectionsPage() {
             <input
               type="datetime-local"
               required
+              min={minStartDatetimeLocal()}
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
               className="hub-input mt-1 w-full rounded-xl px-3.5 py-2.5 text-sm"
             />
+            <p className="mt-1 text-xs text-zinc-500">
+              Must be at least 24 hours from now. Countdown appears the day before voting opens.
+            </p>
           </div>
           <div>
             <label className="text-sm font-medium">End</label>
@@ -233,6 +239,11 @@ export default function AdminElectionsPage() {
                 {' · '}
                 {e.vote_count ?? 0} votes
               </p>
+              {(e.status === 'upcoming' || e.status === 'active' || e.status === 'completed') && (
+                <div className="mt-2">
+                  <ElectionCountdown startDate={e.start_date} endDate={e.end_date} size="sm" />
+                </div>
+              )}
             </div>
             <Link href={`/hub/admin/elections/${e.id}`} className="hub-link text-sm">
               Manage →

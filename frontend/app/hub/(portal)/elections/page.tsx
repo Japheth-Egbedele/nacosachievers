@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { SpinnerCenter } from '@/app/components/Spinner';
 import HubPageHeader from '@/app/hub/components/ui/HubPageHeader';
 import HubPillTabs from '@/app/hub/components/ui/HubPillTabs';
+import ElectionCountdown from '@/app/hub/components/elections/ElectionCountdown';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
@@ -95,6 +96,9 @@ export default function ElectionsPage() {
                   <span>
                     {formatDate(e.start_date)} — {formatDate(e.end_date)}
                   </span>
+                  {(e.status === 'upcoming' || e.status === 'active' || e.status === 'completed') && (
+                    <ElectionCountdown startDate={e.start_date} endDate={e.end_date} size="sm" />
+                  )}
                   {e.status === 'active' && !isStaff && (
                     <span
                       className={
@@ -109,6 +113,11 @@ export default function ElectionsPage() {
                   {e.status === 'active' && isStaff && (
                     <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 font-medium text-zinc-600">
                       Voting open — results after close
+                    </span>
+                  )}
+                  {e.status === 'upcoming' && (
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 font-medium text-emerald-800">
+                      View contestants →
                     </span>
                   )}
                   {e.status === 'completed' && (
