@@ -7,6 +7,7 @@ import { requireAdminScope } from '../middleware/require-admin-scope.js';
 import { requireExecutive, requireSuperAdmin } from '../middleware/role-guard.js';
 import {
   assignExecutiveSchema,
+  correctMemberEmailSchema,
   membersQuerySchema,
   memberStatsQuerySchema,
   patchMemberSchema,
@@ -46,6 +47,17 @@ router.patch(
   membersScope,
   validate(patchMemberSchema),
   catchAsync(adminController.patchMember),
+);
+router.post(
+  '/members/:id/correct-email',
+  membersScope,
+  validate(correctMemberEmailSchema),
+  catchAsync(adminController.correctMemberEmail),
+);
+router.post(
+  '/members/:id/resend-verification',
+  membersScope,
+  catchAsync(adminController.resendMemberVerification),
 );
 router.get('/analytics', membersScope, catchAsync(adminController.getAnalytics));
 router.get('/executives', membersScope, catchAsync(adminController.listExecutives));

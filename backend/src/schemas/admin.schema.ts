@@ -18,10 +18,18 @@ export const membersQuerySchema = z.object({
     .enum(['true', 'false'])
     .transform((v) => v === 'true')
     .optional(),
+  is_email_verified: z
+    .enum(['true', 'false'])
+    .transform((v) => v === 'true')
+    .optional(),
 });
 
 export const memberStatsQuerySchema = z.object({
   scope: memberScopeSchema,
+});
+
+export const correctMemberEmailSchema = z.object({
+  new_email: z.string().email(),
 });
 
 export const patchMemberSchema = z.object({

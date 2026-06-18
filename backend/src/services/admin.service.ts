@@ -30,6 +30,7 @@ export async function listMembers(query: {
   level?: UserLevel;
   status?: AcademicStatus;
   is_active?: boolean;
+  is_email_verified?: boolean;
 }) {
   const { page, limit, offset } = parsePagination(query);
   const scope = normalizeMemberScope(query.scope);
@@ -40,6 +41,7 @@ export async function listMembers(query: {
   if (query.level) q = q.eq('level', query.level);
   if (query.status) q = q.eq('academic_status', query.status);
   if (query.is_active !== undefined) q = q.eq('is_active', query.is_active);
+  if (query.is_email_verified !== undefined) q = q.eq('is_email_verified', query.is_email_verified);
   if (query.search) {
     const s = `%${query.search}%`;
     q = q.or(

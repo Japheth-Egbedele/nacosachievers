@@ -4,6 +4,7 @@ import { ForbiddenError } from '../utils/errors.js';
 import { sendPaginated, sendSuccess } from '../utils/response.js';
 import * as adminService from '../services/admin.service.js';
 import * as auditService from '../services/audit.service.js';
+import * as authService from '../services/auth.service.js';
 import * as sessionPromotionService from '../services/session-promotion.service.js';
 import { officeDisplayTitle } from '../constants/executive-offices.js';
 import type { AdminScope } from '../constants/admin-scopes.js';
@@ -67,6 +68,39 @@ export async function patchMember(req: Request, res: Response): Promise<void> {
     admin_scopes: body.admin_scopes,
   });
   sendSuccess(res, data);
+}
+
+export async function correctMemberEmail(req: Request, res: Response): Promise<void> {
+  const body = req.body as { new_email: string };
+  const memberId = req.params.id!;
+  const result = await authService.correctMemberEmailByAdmin(memberId, body.new_email);
+
+  await auditService.logAudit({
+    actorId: req.user!.id,
+    action: 'member_email_corrected',
+    entityType: 'user',
+    entityId: memberId,
+    metadata: { new_email: result.email },
+    ipAddress: req.ip,
+  });
+
+  sendSuccess(res, result, HTTP_STATUS.OK, 'Email updated and verification link sent.');
+}
+
+export async function resendMemberVerification(req: Request, res: Response): Promise<void> {
+  const memberId = req.params.id!;
+  const result = await authService.resendMemberVerificationByAdmin(memberId);
+
+  await auditService.logAudit({
+    actorId: req.user!.id,
+    action: 'member_verification_resent',
+    entityType: 'user',
+    entityId: memberId,
+    metadata: { email: result.email },
+    ipAddress: req.ip,
+  });
+
+  sendSuccess(res, result, HTTP_STATUS.OK, 'Verification email sent.');
 }
 
 export async function syncExecutiveScopes(_req: Request, res: Response): Promise<void> {

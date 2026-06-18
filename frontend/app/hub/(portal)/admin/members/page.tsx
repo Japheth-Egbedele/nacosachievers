@@ -62,6 +62,11 @@ function AdminMembersContent() {
     return Number.isFinite(p) && p > 0 ? p : 1;
   });
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
+  const [verifiedFilter, setVerifiedFilter] = useState<'all' | 'verified' | 'unverified'>(() => {
+    const v = searchParams.get('verified');
+    if (v === 'verified' || v === 'unverified') return v;
+    return 'all';
+  });
   const [items, setItems] = useState<Member[]>([]);
   const [meta, setMeta] = useState<PaginationMeta>({ total: 0, page: 1, limit: PAGE_LIMIT });
   const [stats, setStats] = useState<MemberStats | null>(null);
@@ -72,7 +77,7 @@ function AdminMembersContent() {
   const [drawerMember, setDrawerMember] = useState<MemberDetail | null>(null);
 
   const syncUrl = useCallback(
-    (next: { scope?: MemberScope; level?: LevelFilter; page?: number; q?: string }) => {
+    (next: { scope?: MemberScope; level?: LevelFilter; page?: number; q?: string; verified?: typeof verifiedFilter }) => {
       const params = new URLSearchParams();
       params.set('scope', next.scope ?? scope);
       const lvl = next.level ?? level;
@@ -81,10 +86,12 @@ function AdminMembersContent() {
       if (pg > 1) params.set('page', String(pg));
       const q = next.q ?? search;
       if (q.trim()) params.set('q', q.trim());
+      const vf = next.verified ?? verifiedFilter;
+      if (vf !== 'all') params.set('verified', vf);
       const qs = params.toString();
       router.replace(qs ? `/hub/admin/members?${qs}` : '/hub/admin/members', { scroll: false });
     },
-    [router, scope, level, page, search],
+    [router, scope, level, page, search, verifiedFilter],
   );
 
   const loadStats = useCallback(() => {
@@ -94,7 +101,7 @@ function AdminMembersContent() {
   }, [scope]);
 
   const loadMembers = useCallback(() => {
-    const path = buildMembersQuery({ scope, level, page, limit: PAGE_LIMIT, search });
+    const path = buildMembersQuery({ scope, level, page, limit: PAGE_LIMIT, search, verified: verifiedFilter });
     setLoading(true);
     return apiFetchPaginated<Member>(`/admin/members${path}`)
       .then((r) => {
@@ -111,7 +118,7 @@ function AdminMembersContent() {
         setMeta({ total: 0, page, limit: PAGE_LIMIT });
       })
       .finally(() => setLoading(false));
-  }, [scope, level, page, search]);
+  }, [scope, level, page, search, verifiedFilter]);
 
   const refresh = useCallback(() => {
     void Promise.all([loadStats(), loadMembers()]);
@@ -124,6 +131,8 @@ function AdminMembersContent() {
       const p = Number(searchParams.get('page'));
       setPage(Number.isFinite(p) && p > 0 ? p : 1);
       setSearch(searchParams.get('q') ?? '');
+      const v = searchParams.get('verified');
+      setVerifiedFilter(v === 'verified' || v === 'unverified' ? v : 'all');
     }, 0);
     return () => window.clearTimeout(t);
   }, [searchParams]);
@@ -179,6 +188,25 @@ function AdminMembersContent() {
   function submitSearch() {
     setPage(1);
     syncUrl({ page: 1, q: search });
+    refresh();
+  }
+
+  function changeVerifiedFilter(next: 'all' | 'verified' | 'unverified') {
+    setVerifiedFilter(next);
+    setPage(1);
+    syncUrl({ verified: next, page: 1 });
+  }
+
+  async function correctMemberEmail(id: string, newEmail: string) {
+    await apiFetch(`/admin/members/${id}/correct-email`, {
+      method: 'POST',
+      body: JSON.stringify({ new_email: newEmail }),
+    });
+    refresh();
+  }
+
+  async function resendMemberVerification(id: string) {
+    await apiFetch(`/admin/members/${id}/resend-verification`, { method: 'POST' });
     refresh();
   }
 
@@ -248,6 +276,18 @@ function AdminMembersContent() {
         onSubmit={submitSearch}
         placeholder="ID number, email, name…"
       />
+
+      <div className="mb-4">
+        <HubPillTabs
+          tabs={[
+            { key: 'all', label: 'All accounts' },
+            { key: 'unverified', label: 'Unverified email' },
+            { key: 'verified', label: 'Verified' },
+          ]}
+          active={verifiedFilter}
+          onChange={(k) => changeVerifiedFilter(k as 'all' | 'verified' | 'unverified')}
+        />
+      </div>
 
       <div className="hub-card overflow-x-auto">
         <table className="min-w-full text-left text-sm">
@@ -320,7 +360,19 @@ function AdminMembersContent() {
                 <td className="px-4 py-3 text-[var(--color-hub-text-secondary)]">
                   {m.expected_graduation_year ?? '—'}
                 </td>
-                <td className="px-4 py-3">{m.is_email_verified ? 'Yes' : 'No'}</td>
+                <td className="px-4 py-3">
+                  {m.is_email_verified ? (
+                    'Yes'
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setDrawerMember(m)}
+                      className="font-medium text-amber-800 hover:underline"
+                    >
+                      No — fix
+                    </button>
+                  )}
+                </td>
                 {isSuperAdmin && (
                   <td className="px-4 py-3">
                     <label className="inline-flex cursor-pointer items-center gap-2">
@@ -369,6 +421,14 @@ function AdminMembersContent() {
           if (!drawerMember) return;
           void patchMember(drawerMember.id, patch).then(() => setDrawerMember(null));
         }}
+        onCorrectEmail={
+          drawerMember
+            ? (newEmail) => correctMemberEmail(drawerMember.id, newEmail)
+            : undefined
+        }
+        onResendVerification={
+          drawerMember ? () => resendMemberVerification(drawerMember.id) : undefined
+        }
       />
     </div>
   );

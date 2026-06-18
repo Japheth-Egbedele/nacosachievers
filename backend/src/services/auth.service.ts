@@ -173,7 +173,7 @@ export async function registerUser(input: {
   return { userId: user.id, email_sent: emailSent };
 }
 
-async function issueVerificationEmail(userId: string, email: string): Promise<boolean> {
+export async function issueVerificationEmail(userId: string, email: string): Promise<boolean> {
   await getSupabase()
     .from('email_verifications')
     .update({ used_at: new Date().toISOString() })
@@ -283,6 +283,88 @@ export async function correctPendingEmail(input: {
   }
 
   return { email_sent: true, email: newEmail };
+}
+
+/**
+ * Admin: update email for an unverified member and send a new verification link.
+ */
+export async function correctMemberEmailByAdmin(
+  userId: string,
+  newEmail: string,
+): Promise<{ email: string; email_sent: boolean }> {
+  const { data: user } = await getSupabase()
+    .from('users')
+    .select('id, email, is_email_verified, is_active')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (!user) {
+    throw new ValidationError('Member not found', 'MEMBER_NOT_FOUND');
+  }
+  if (user.is_email_verified) {
+    throw new ValidationError('This account is already verified. Email cannot be changed here.');
+  }
+  if (!user.is_active) {
+    throw new ValidationError('Cannot update email for an inactive account');
+  }
+
+  const normalized = newEmail.toLowerCase();
+  if (normalized === (user.email as string).toLowerCase()) {
+    throw new ValidationError('New email must be different from the current one');
+  }
+
+  const { error } = await getSupabase()
+    .from('users')
+    .update({ email: normalized, updated_at: new Date().toISOString() })
+    .eq('id', userId);
+
+  if (error) {
+    if (error.code === '23505') {
+      throw new ValidationError('That email is already registered');
+    }
+    throw error;
+  }
+
+  const emailSent = await issueVerificationEmail(userId, normalized);
+  if (!emailSent) {
+    throw new ValidationError(
+      'Email updated but verification message could not be sent. Try resend shortly.',
+    );
+  }
+
+  return { email: normalized, email_sent: true };
+}
+
+/**
+ * Admin: resend verification email to an unverified member (same address).
+ */
+export async function resendMemberVerificationByAdmin(
+  userId: string,
+): Promise<{ email: string; email_sent: boolean }> {
+  const { data: user } = await getSupabase()
+    .from('users')
+    .select('id, email, is_email_verified, is_active')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (!user?.email) {
+    throw new ValidationError('Member not found', 'MEMBER_NOT_FOUND');
+  }
+  if (user.is_email_verified) {
+    throw new ValidationError('This account is already verified');
+  }
+  if (!user.is_active) {
+    throw new ValidationError('Cannot resend verification for an inactive account');
+  }
+
+  const emailSent = await issueVerificationEmail(userId, user.email as string);
+  if (!emailSent) {
+    throw new ValidationError(
+      'Could not send email. Check Resend configuration or try again shortly.',
+    );
+  }
+
+  return { email: user.email as string, email_sent: true };
 }
 
 /**

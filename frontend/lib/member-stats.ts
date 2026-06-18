@@ -66,6 +66,7 @@ export function buildMembersQuery(params: {
   page: number;
   limit: number;
   search?: string;
+  verified?: 'all' | 'verified' | 'unverified';
 }): string {
   const q = new URLSearchParams();
   q.set('scope', params.scope);
@@ -73,5 +74,7 @@ export function buildMembersQuery(params: {
   q.set('limit', String(params.limit));
   if (params.level !== 'all') q.set('level', params.level);
   if (params.search?.trim()) q.set('search', params.search.trim());
+  if (params.verified === 'verified') q.set('is_email_verified', 'true');
+  if (params.verified === 'unverified') q.set('is_email_verified', 'false');
   return `?${q.toString()}`;
 }

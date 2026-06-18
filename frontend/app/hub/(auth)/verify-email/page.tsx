@@ -74,13 +74,19 @@ function VerifyEmailForm() {
       const t = window.setTimeout(
         () =>
           setMessage(
-            'We sent a verification link to your email. Check your inbox and spam folder — the link expires in 24 hours.',
+            'We sent a verification link to your email. Check your inbox and spam folder — the link expires in 24 hours. Used the wrong email? Tap “Wrong email address?” below to fix it before verifying.',
           ),
         0,
       );
       return () => window.clearTimeout(t);
     } else if (unverified && !message) {
-      const t = window.setTimeout(() => setMessage('Your account is not verified yet. Resend the link below.'), 0);
+      const t = window.setTimeout(
+        () =>
+          setMessage(
+            'Your account is not verified yet. Resend the link below, or use “Wrong email address?” if you registered with a typo.',
+          ),
+        0,
+      );
       return () => window.clearTimeout(t);
     }
   }, [tokenFromUrl, justRegistered, unverified, autoStarted, verifyToken, message]);
@@ -143,6 +149,14 @@ function VerifyEmailForm() {
         {message && <HubAlert variant="success">{message}</HubAlert>}
         {error && <HubAlert variant="error">{error}</HubAlert>}
 
+        {!verifying && recoveryPanel !== 'wrongEmail' && (
+          <HubAlert variant="info">
+            Registered with the wrong Gmail? Open <strong>Wrong email address?</strong> below, enter
+            the email and password you used, then your correct address — we will send a new link
+            there.
+          </HubAlert>
+        )}
+
         {verifying && tokenFromUrl ? (
           <div className="flex items-center gap-3 rounded-xl bg-[#f5f4f0] px-4 py-4">
             <Spinner className="h-6 w-6" />
@@ -202,9 +216,28 @@ function VerifyEmailForm() {
 
             {recoveryPanel === 'wrongEmail' && (
               <form onSubmit={handleCorrectEmail} className="space-y-4 rounded-xl bg-[#f5f4f0] p-4">
+                <p className="text-sm font-medium text-zinc-800">Fix your registered email</p>
                 <p className="text-xs text-zinc-600">
-                  Update to the correct address before verifying.
+                  Enter the wrong email and your password, then the correct address. We will update
+                  your account and email a new verification link to the right inbox.
                 </p>
+                <HubField label="Email you registered with (wrong one)">
+                  <HubTextInput
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </HubField>
+                <HubField label="Password">
+                  <PasswordInput
+                    value={password}
+                    onChange={setPassword}
+                    required
+                    placeholder="Your password"
+                    className="rounded-xl border-[#e8e6e1] py-2.5 pl-3.5"
+                  />
+                </HubField>
                 <HubField label="Correct email">
                   <HubTextInput
                     type="email"
@@ -214,8 +247,8 @@ function VerifyEmailForm() {
                     placeholder="you@example.com"
                   />
                 </HubField>
-                <button type="submit" disabled={busy || !newEmail.trim()} className={hubBtnSecondary}>
-                  {updatingEmail ? 'Updating…' : 'Update email and resend'}
+                <button type="submit" disabled={busy || !newEmail.trim()} className={hubBtnPrimary}>
+                  {updatingEmail ? 'Updating…' : 'Update email and resend link'}
                 </button>
               </form>
             )}
