@@ -1,10 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Share2 } from 'lucide-react';
+import { Download, Share2 } from 'lucide-react';
 import type { ElectionAnalytics, ElectionPosition } from '@/lib/election-types';
 import CandidatePhoto from '@/app/hub/components/elections/CandidatePhoto';
 import { hubBtnSecondary } from '@/lib/hub-styles';
+import {
+  downloadElectionResultsCsv,
+  downloadElectionResultsJson,
+} from '@/lib/election-export';
 
 type ElectionResultsReportProps = {
   electionTitle?: string;
@@ -85,12 +89,55 @@ export default function ElectionResultsReport({
             <HeroStat
               label="Turnout"
               value={`${analytics.turnout_percentage}%`}
-              hint={`of ${analytics.eligible_voters} eligible`}
+              hint={`of ${analytics.eligible_voters} eligible students & executives`}
             />
             <HeroStat label="Positions" value={String(analytics.contestable_positions)} />
             <HeroStat label="Contestants" value={String(analytics.total_contestants)} />
           </div>
         )}
+      </div>
+
+      {positions.length > 0 && (
+        <div className="hub-card p-5">
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-hub-muted)]">
+            Winners by position
+          </h3>
+          <p className="mt-1 text-xs text-[var(--color-hub-text-secondary)]">
+            Uncontested seats require at least one-third of eligible voters. Abstentions do not count
+            toward a candidate&apos;s total.
+          </p>
+          <ul className="mt-4 divide-y divide-[var(--color-hub-border)]">
+            {positions.map((pos) => (
+              <li key={pos.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
+                <span className="font-medium text-[var(--color-hub-text)]">{pos.title}</span>
+                <WinnerSummaryBadge position={pos} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() =>
+            downloadElectionResultsCsv(electionTitle ?? 'Election', positions, analytics)
+          }
+          className={`${hubBtnSecondary} inline-flex items-center gap-2`}
+        >
+          <Download className="h-4 w-4" aria-hidden />
+          Export CSV
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            downloadElectionResultsJson(electionTitle ?? 'Election', positions, analytics)
+          }
+          className={`${hubBtnSecondary} inline-flex items-center gap-2`}
+        >
+          <Download className="h-4 w-4" aria-hidden />
+          Export JSON
+        </button>
       </div>
 
       {extended && (
@@ -135,6 +182,70 @@ export default function ElectionResultsReport({
                 hint={`${extended.strongest_candidate.percentage}% · ${extended.strongest_candidate.position}`}
               />
             )}
+          </div>
+        </div>
+      )}
+
+      {extended && (extended.department_turnout?.length ?? 0) > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-hub-muted)]">
+            Turnout by department
+          </h3>
+          <div className="mt-3 overflow-x-auto rounded-xl border border-[var(--color-hub-border)]">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-[var(--color-hub-surface-muted)] text-xs uppercase text-[var(--color-hub-muted)]">
+                <tr>
+                  <th className="px-4 py-2 font-medium">Department</th>
+                  <th className="px-4 py-2 font-medium">Eligible</th>
+                  <th className="px-4 py-2 font-medium">Voted</th>
+                  <th className="px-4 py-2 font-medium">Turnout</th>
+                </tr>
+              </thead>
+              <tbody>
+                {extended.department_turnout!.map((d) => (
+                  <tr key={d.department_id ?? 'unassigned'} className="border-t border-[var(--color-hub-border)]">
+                    <td className="px-4 py-2">{d.department_name}</td>
+                    <td className="px-4 py-2 tabular-nums">{d.eligible}</td>
+                    <td className="px-4 py-2 tabular-nums">{d.voted}</td>
+                    <td className="px-4 py-2 tabular-nums font-medium text-[var(--color-brand)]">
+                      {d.turnout_percentage}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {extended && extended.level_turnout.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-hub-muted)]">
+            Turnout by level
+          </h3>
+          <div className="mt-3 overflow-x-auto rounded-xl border border-[var(--color-hub-border)]">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-[var(--color-hub-surface-muted)] text-xs uppercase text-[var(--color-hub-muted)]">
+                <tr>
+                  <th className="px-4 py-2 font-medium">Level</th>
+                  <th className="px-4 py-2 font-medium">Eligible</th>
+                  <th className="px-4 py-2 font-medium">Voted</th>
+                  <th className="px-4 py-2 font-medium">Turnout</th>
+                </tr>
+              </thead>
+              <tbody>
+                {extended.level_turnout.map((l) => (
+                  <tr key={l.level} className="border-t border-[var(--color-hub-border)]">
+                    <td className="px-4 py-2">Level {l.level}</td>
+                    <td className="px-4 py-2 tabular-nums">{l.eligible}</td>
+                    <td className="px-4 py-2 tabular-nums">{l.voted}</td>
+                    <td className="px-4 py-2 tabular-nums font-medium text-[var(--color-brand)]">
+                      {l.turnout_percentage}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -191,8 +302,50 @@ function InsightCard({ label, value, hint }: { label: string; value: string; hin
   );
 }
 
+function WinnerSummaryBadge({ position }: { position: ElectionPosition }) {
+  if (position.contestant_count === 0) {
+    return (
+      <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600">
+        Vacant
+      </span>
+    );
+  }
+  if (position.is_tie) {
+    return (
+      <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900">
+        Tie
+      </span>
+    );
+  }
+  if (position.quorum_not_met) {
+    return (
+      <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
+        Quorum not met ({position.candidates[0]?.vote_count ?? 0}/
+        {position.min_votes_required} needed)
+      </span>
+    );
+  }
+  if (position.winner) {
+    return (
+      <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-900">
+        {position.winner.name} · {position.winner.vote_count} votes
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600">
+      No winner
+    </span>
+  );
+}
+
 function PositionResultCard({ position }: { position: ElectionPosition }) {
-  const maxVotes = Math.max(...position.candidates.map((c) => c.vote_count ?? 0), 0);
+  const maxVotes = Math.max(
+    ...position.candidates.map((c) => c.vote_count ?? 0),
+    position.abstention_count ?? 0,
+  );
+  const abstentions = position.abstention_count ?? 0;
+  const abstainPct = position.abstention_percentage ?? 0;
 
   return (
     <section className="hub-card overflow-hidden p-0">
@@ -200,12 +353,19 @@ function PositionResultCard({ position }: { position: ElectionPosition }) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-lg font-semibold text-[var(--color-hub-text)]">{position.title}</h3>
           <span className="text-sm text-[var(--color-hub-text-secondary)]">
-            {position.total_votes ?? 0} vote{(position.total_votes ?? 0) === 1 ? '' : 's'}
+            {position.ballots_cast ?? position.total_votes ?? 0} ballot
+            {(position.ballots_cast ?? position.total_votes ?? 0) === 1 ? '' : 's'} cast
           </span>
         </div>
         {position.winner && !position.is_tie && (
           <p className="mt-2 text-sm text-[var(--color-brand)]">
             Winner: <strong>{position.winner.name}</strong> ({position.winner.vote_count} votes)
+          </p>
+        )}
+        {position.quorum_not_met && (
+          <p className="mt-2 text-sm text-red-700 dark:text-red-400">
+            Quorum not met — sole contestant needed at least {position.min_votes_required} votes
+            (one-third of {position.eligible_voters} eligible voters).
           </p>
         )}
         {position.is_tie && (
@@ -237,6 +397,11 @@ function PositionResultCard({ position }: { position: ElectionPosition }) {
                           Tied
                         </span>
                       )}
+                      {c.quorum_not_met && (
+                        <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-800">
+                          Below quorum
+                        </span>
+                      )}
                     </span>
                     {c.manifesto && (
                       <p className="mt-1 line-clamp-2 text-xs text-[var(--color-hub-text-secondary)]">
@@ -260,6 +425,30 @@ function PositionResultCard({ position }: { position: ElectionPosition }) {
             </li>
           );
         })}
+        {position.candidates.length > 0 && (
+          <li className="px-5 py-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <span className={`font-medium ${abstentions > 0 ? 'text-zinc-600' : 'text-[var(--color-hub-text-secondary)]'}`}>
+                  None of the above (abstain)
+                </span>
+                <p className="mt-1 text-xs text-[var(--color-hub-text-secondary)]">
+                  Voters who abstained on this position
+                </p>
+              </div>
+              <div className="text-right text-sm font-semibold tabular-nums text-zinc-600">
+                {abstentions}{' '}
+                <span className="font-normal text-[var(--color-hub-muted)]">({abstainPct}%)</span>
+              </div>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--color-hub-surface-muted)]">
+              <div
+                className="h-full rounded-full bg-zinc-400/60 transition-all"
+                style={{ width: `${maxVotes > 0 ? (abstentions / maxVotes) * 100 : 0}%` }}
+              />
+            </div>
+          </li>
+        )}
         {position.candidates.length === 0 && (
           <li className="px-5 py-6 text-center text-sm text-[var(--color-hub-text-secondary)]">
             No contestants

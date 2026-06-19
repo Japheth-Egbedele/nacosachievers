@@ -14,6 +14,7 @@ import {
   type VoteSelection,
 } from './election-ballot.js';
 import { buildPositionResults } from './election-results.util.js';
+import { ELECTION_VOTER_ROLES, isElectionVoterRole } from '../utils/election-voters.js';
 
 export type { VoteSelection };
 export { buildPositionResults };
@@ -112,13 +113,16 @@ async function assertUserCanVote(userId: string): Promise<void> {
   if (data.role === 'staff') {
     throw new ForbiddenError('Lecturers and staff cannot vote in chapter elections');
   }
+  if (data.role === 'alumni') {
+    throw new ForbiddenError('Alumni cannot vote in chapter student elections');
+  }
   if (data.role === 'super_admin') {
     throw new ForbiddenError('Super admin accounts cannot vote; use a student test account');
   }
 }
 
 function isVoterRole(role: string): boolean {
-  return role === 'member' || role === 'alumni' || role === 'executive';
+  return isElectionVoterRole(role);
 }
 
 async function fetchPositions(electionId: string): Promise<PositionRow[]> {
@@ -172,7 +176,7 @@ async function countEligibleVoters(): Promise<number> {
     .select('id', { count: 'exact', head: true })
     .eq('is_active', true)
     .eq('is_email_verified', true)
-    .in('role', ['member', 'alumni', 'executive']);
+    .in('role', [...ELECTION_VOTER_ROLES]);
 
   if (error) throw error;
   return count ?? 0;
@@ -334,11 +338,13 @@ export async function getElectionDetail(electionId: string, userId: string) {
       ...c,
       image_url: publicCandidateImage(c.image_url),
     }));
+    const eligibleVoters = await countEligibleVoters();
     const positionResults = buildPositionResults(
       positions,
       optimizedCandidates,
       countByCandidate,
       abstentionCounts,
+      eligibleVoters,
     );
     const analytics = await buildAnalytics(uniqueVoters, positions, candidates);
     const extended = await buildExtendedAnalytics(electionId, positionResults, uniqueVoters);
@@ -871,17 +877,23 @@ export async function buildExtendedAnalytics(
   positionResults: ReturnType<typeof buildPositionResults>,
   totalVoters: number,
 ) {
+  const { data: deptRows } = await getSupabase().from('departments').select('id, name');
+  const deptNames = new Map((deptRows ?? []).map((d) => [d.id as string, d.name as string]));
+
   const { data: eligibleRows } = await getSupabase()
     .from('users')
-    .select('level')
+    .select('level, department_id')
     .eq('is_active', true)
     .eq('is_email_verified', true)
-    .in('role', ['member', 'alumni', 'executive']);
+    .in('role', [...ELECTION_VOTER_ROLES]);
 
   const eligibleByLevel = new Map<string, number>();
+  const eligibleByDept = new Map<string, number>();
   for (const row of eligibleRows ?? []) {
     const lv = (row.level as string) ?? 'unknown';
     eligibleByLevel.set(lv, (eligibleByLevel.get(lv) ?? 0) + 1);
+    const deptKey = (row.department_id as string | null) ?? 'unassigned';
+    eligibleByDept.set(deptKey, (eligibleByDept.get(deptKey) ?? 0) + 1);
   }
 
   const { data: voterRows } = await getSupabase()
@@ -891,14 +903,17 @@ export async function buildExtendedAnalytics(
   const voterIds = [...new Set((voterRows ?? []).map((r) => r.user_id))];
 
   const votersByLevel = new Map<string, number>();
+  const votersByDept = new Map<string, number>();
   if (voterIds.length > 0) {
     const { data: users } = await getSupabase()
       .from('users')
-      .select('id, level')
+      .select('id, level, department_id')
       .in('id', voterIds);
     for (const u of users ?? []) {
       const lv = (u.level as string) ?? 'unknown';
       votersByLevel.set(lv, (votersByLevel.get(lv) ?? 0) + 1);
+      const deptKey = (u.department_id as string | null) ?? 'unassigned';
+      votersByDept.set(deptKey, (votersByDept.get(deptKey) ?? 0) + 1);
     }
   }
 
@@ -915,6 +930,22 @@ export async function buildExtendedAnalytics(
     };
   }).filter((l) => l.eligible > 0);
 
+  const departmentTurnout = [...eligibleByDept.entries()]
+    .map(([deptId, eligible]) => {
+      const voted = votersByDept.get(deptId) ?? 0;
+      const name =
+        deptId === 'unassigned' ? 'Unassigned department' : (deptNames.get(deptId) ?? 'Department');
+      return {
+        department_id: deptId === 'unassigned' ? null : deptId,
+        department_name: name,
+        eligible,
+        voted,
+        turnout_percentage: eligible > 0 ? Math.round((voted / eligible) * 1000) / 10 : 0,
+      };
+    })
+    .filter((d) => d.eligible > 0)
+    .sort((a, b) => b.turnout_percentage - a.turnout_percentage);
+
   const byTurnout = [...levelTurnout].sort((a, b) => b.turnout_percentage - a.turnout_percentage);
   const mostActive = byTurnout[0] ?? null;
   const leastActive = byTurnout[byTurnout.length - 1] ?? null;
@@ -928,18 +959,18 @@ export async function buildExtendedAnalytics(
   let strongest: { name: string; position: string; percentage: number } | null = null;
 
   for (const pos of positionResults) {
-    if ((pos.total_votes ?? 0) === 0) continue;
+    if (pos.quorum_not_met || !pos.winner) continue;
+    const winnerCandidate = pos.candidates.find((c) => c.is_winner);
+    if (!winnerCandidate) continue;
+    const topPct = winnerCandidate.vote_percentage ?? 0;
+    winnerShares.push(topPct);
+    if (!strongest || topPct > strongest.percentage) {
+      strongest = { name: winnerCandidate.name, position: pos.title, percentage: topPct };
+    }
     const sorted = [...pos.candidates].sort(
       (a, b) => (b.vote_count ?? 0) - (a.vote_count ?? 0),
     );
-    const top = sorted[0];
     const second = sorted[1];
-    if (!top) continue;
-    const topPct = top.vote_percentage ?? 0;
-    winnerShares.push(topPct);
-    if (!strongest || topPct > strongest.percentage) {
-      strongest = { name: top.name, position: pos.title, percentage: topPct };
-    }
     if (second) {
       margins.push(topPct - (second.vote_percentage ?? 0));
     }
@@ -956,6 +987,7 @@ export async function buildExtendedAnalytics(
 
   return {
     level_turnout: levelTurnout,
+    department_turnout: departmentTurnout,
     most_active_level: mostActive,
     least_active_level: leastActive,
     turnout_spread: turnoutSpread,
@@ -970,7 +1002,7 @@ export async function getAdminStats() {
   const { count: totalUsers } = await getSupabase()
     .from('users')
     .select('*', { count: 'exact', head: true })
-    .in('role', ['member', 'alumni', 'executive']);
+    .in('role', [...ELECTION_VOTER_ROLES]);
 
   const { data: elections } = await getSupabase()
     .from('elections_with_status')
@@ -1064,6 +1096,7 @@ export async function getElectionResults(
   const { countByCandidate } = buildVoteCounts(voteRows ?? []);
   const abstentionCounts = await fetchAbstentionCounts(electionId);
   const uniqueVoters = await countBallotsCast(electionId);
+  const eligibleVoters = await countEligibleVoters();
   const optimizedCandidates = candidates.map((c) => ({
     ...c,
     image_url: publicCandidateImage(c.image_url),
@@ -1073,6 +1106,7 @@ export async function getElectionResults(
     optimizedCandidates,
     countByCandidate,
     abstentionCounts,
+    eligibleVoters,
   );
   const analytics = await buildAnalytics(uniqueVoters, positions, candidates);
   const extended = await buildExtendedAnalytics(electionId, positionResults, uniqueVoters);

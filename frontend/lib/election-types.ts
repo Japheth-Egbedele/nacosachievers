@@ -7,6 +7,7 @@ export interface ElectionPositionCandidate {
   vote_percentage?: number;
   is_winner?: boolean;
   is_tie?: boolean;
+  quorum_not_met?: boolean;
 }
 
 export interface ElectionPosition {
@@ -17,9 +18,13 @@ export interface ElectionPosition {
   total_votes?: number;
   ballots_cast?: number;
   abstention_count?: number;
+  abstention_percentage?: number;
   contestant_count?: number;
   winner?: { id: string; name: string; vote_count: number } | null;
   is_tie?: boolean;
+  quorum_not_met?: boolean;
+  min_votes_required?: number;
+  eligible_voters?: number;
 }
 
 export interface LevelTurnoutStat {
@@ -27,10 +32,20 @@ export interface LevelTurnoutStat {
   eligible: number;
   voted: number;
   turnout_percentage: number;
+  share_of_voters?: number;
+}
+
+export interface DepartmentTurnoutStat {
+  department_id: string | null;
+  department_name: string;
+  eligible: number;
+  voted: number;
+  turnout_percentage: number;
 }
 
 export interface ElectionAnalyticsExtended {
   level_turnout: LevelTurnoutStat[];
+  department_turnout?: DepartmentTurnoutStat[];
   most_active_level: LevelTurnoutStat | null;
   least_active_level: LevelTurnoutStat | null;
   turnout_spread: number;

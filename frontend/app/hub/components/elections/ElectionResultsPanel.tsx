@@ -21,7 +21,7 @@ export default function ElectionResultsPanel({
           <StatCard
             label="Turnout"
             value={`${analytics.turnout_percentage}%`}
-            hint={`of ${analytics.eligible_voters} eligible voters`}
+            hint={`of ${analytics.eligible_voters} eligible students & executives`}
           />
           <StatCard label="Positions" value={String(analytics.contestable_positions)} />
           <StatCard label="Contestants" value={String(analytics.total_contestants)} />
