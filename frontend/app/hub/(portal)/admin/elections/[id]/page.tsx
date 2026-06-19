@@ -114,7 +114,8 @@ export default function AdminElectionDetailPage() {
       const body: { start_date?: string; end_date?: string } = {
         end_date: new Date(scheduleEnd).toISOString(),
       };
-      if (setup.election.status === 'upcoming') {
+      const originalStart = toDatetimeLocalValue(setup.election.start_date);
+      if (setup.election.status === 'upcoming' && scheduleStart !== originalStart) {
         body.start_date = new Date(scheduleStart).toISOString();
       }
       await apiFetch(`/admin/elections/${id}`, {
@@ -353,7 +354,14 @@ export default function AdminElectionDetailPage() {
                   type="datetime-local"
                   required
                   disabled={election.status !== 'upcoming'}
-                  min={election.status === 'upcoming' ? minStartDatetimeLocal() : undefined}
+                  min={
+                    election.status === 'upcoming' &&
+                    scheduleStart === toDatetimeLocalValue(election.start_date)
+                      ? undefined
+                      : election.status === 'upcoming'
+                        ? minStartDatetimeLocal()
+                        : undefined
+                  }
                   value={scheduleStart}
                   onChange={(e) => setScheduleStart(e.target.value)}
                   className="mt-1 w-full rounded-lg border px-3 py-2 text-sm disabled:bg-zinc-100 dark:border-zinc-700 dark:disabled:bg-zinc-800"

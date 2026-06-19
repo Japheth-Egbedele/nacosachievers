@@ -578,7 +578,12 @@ export async function updateElection(
     throw new ValidationError('End date must be after start date');
   }
   if (updates.start_date !== undefined) {
-    assertElectionStartLeadTime(nextStart);
+    const existingStartMs = new Date(election.start_date).getTime();
+    const nextStartMs = new Date(nextStart).getTime();
+    const startChanged = Math.abs(existingStartMs - nextStartMs) > 60_000;
+    if (startChanged) {
+      assertElectionStartLeadTime(nextStart);
+    }
   }
   if (updates.end_date !== undefined && election.status === 'active') {
     if (new Date(nextEnd).getTime() <= Date.now()) {
