@@ -51,6 +51,7 @@ export interface ElectionAnalyticsExtended {
   turnout_spread: number;
   average_winner_share: number;
   average_winning_margin: number;
+  strongest_wins?: Array<{ name: string; position: string; percentage: number }>;
   strongest_candidate: { name: string; position: string; percentage: number } | null;
   published_at: string;
 }

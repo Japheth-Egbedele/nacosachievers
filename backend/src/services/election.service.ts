@@ -13,7 +13,7 @@ import {
   userHasBallot,
   type VoteSelection,
 } from './election-ballot.js';
-import { buildPositionResults } from './election-results.util.js';
+import { buildPositionResults, collectStrongestWins } from './election-results.util.js';
 import { ELECTION_VOTER_ROLES, isElectionVoterRole } from '../utils/election-voters.js';
 
 export type { VoteSelection };
@@ -956,7 +956,6 @@ export async function buildExtendedAnalytics(
 
   const winnerShares: number[] = [];
   const margins: number[] = [];
-  let strongest: { name: string; position: string; percentage: number } | null = null;
 
   for (const pos of positionResults) {
     if (pos.quorum_not_met || !pos.winner) continue;
@@ -964,9 +963,6 @@ export async function buildExtendedAnalytics(
     if (!winnerCandidate) continue;
     const topPct = winnerCandidate.vote_percentage ?? 0;
     winnerShares.push(topPct);
-    if (!strongest || topPct > strongest.percentage) {
-      strongest = { name: winnerCandidate.name, position: pos.title, percentage: topPct };
-    }
     const sorted = [...pos.candidates].sort(
       (a, b) => (b.vote_count ?? 0) - (a.vote_count ?? 0),
     );
@@ -975,6 +971,9 @@ export async function buildExtendedAnalytics(
       margins.push(topPct - (second.vote_percentage ?? 0));
     }
   }
+
+  const strongestWins = collectStrongestWins(positionResults);
+  const strongestCandidate = strongestWins[0] ?? null;
 
   const average_winner_share =
     winnerShares.length > 0
@@ -993,7 +992,8 @@ export async function buildExtendedAnalytics(
     turnout_spread: turnoutSpread,
     average_winner_share,
     average_winning_margin,
-    strongest_candidate: strongest,
+    strongest_wins: strongestWins,
+    strongest_candidate: strongestCandidate,
     published_at: new Date().toISOString(),
   };
 }
@@ -1023,20 +1023,56 @@ export async function getAdminStats() {
     .slice(0, 10)
     .map((e) => ({ id: e.id, title: e.title, votes: Number(e.vote_count ?? 0) }));
 
-  const { data: recentVotes } = await getSupabase()
-    .from('election_votes')
-    .select('voted_at, user_id, election_id')
-    .order('voted_at', { ascending: false })
+  const { data: recentBallots, error: ballotError } = await getSupabase()
+    .from('election_ballots')
+    .select('cast_at, user_id, election_id')
+    .order('cast_at', { ascending: false })
     .limit(10);
+
+  let recentBallotRows: Array<{
+    voted_at: string;
+    user_id: string;
+    election_id: string;
+  }> = [];
+
+  if (!ballotError && recentBallots) {
+    recentBallotRows = recentBallots.map((b) => ({
+      voted_at: b.cast_at as string,
+      user_id: b.user_id as string,
+      election_id: b.election_id as string,
+    }));
+  } else if (ballotError?.code === '42P01') {
+    const { data: recentVotes } = await getSupabase()
+      .from('election_votes')
+      .select('voted_at, user_id, election_id')
+      .order('voted_at', { ascending: false })
+      .limit(50);
+    const seen = new Set<string>();
+    for (const v of recentVotes ?? []) {
+      const key = `${v.user_id}:${v.election_id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      recentBallotRows.push({
+        voted_at: v.voted_at as string,
+        user_id: v.user_id as string,
+        election_id: v.election_id as string,
+      });
+      if (recentBallotRows.length >= 10) break;
+    }
+  } else if (ballotError) {
+    throw ballotError;
+  }
 
   const recentVoters: Array<{
     full_name: string | null;
     student_id: string | null;
     voted_at: string;
     election_title: string | null;
+    user_id: string;
+    election_id: string;
   }> = [];
 
-  for (const v of recentVotes ?? []) {
+  for (const v of recentBallotRows) {
     const { data: voter } = await getSupabase()
       .from('users')
       .select('first_name, last_name, display_name, matric_number')
@@ -1054,6 +1090,8 @@ export async function getAdminStats() {
       student_id: voter?.matric_number ?? null,
       voted_at: v.voted_at,
       election_title: el?.title ?? null,
+      user_id: v.user_id,
+      election_id: v.election_id,
     });
   }
 

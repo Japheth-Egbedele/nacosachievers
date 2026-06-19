@@ -60,13 +60,25 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
  * @param email Recipient email
  * @param displayName User display name
  */
-export async function sendWelcomeEmail(email: string, displayName: string): Promise<void> {
+export async function sendWelcomeEmail(
+  email: string,
+  displayName: string,
+  role?: string,
+): Promise<void> {
+  const loginUrl = `${emailEnv.FRONTEND_URL}/hub/login`;
+  const isStaff = role === 'staff';
+  const html = isStaff
+    ? `<p>Hi ${displayName}, your lecturer account is active.</p>
+       <p>You can sign in to view <strong>election results</strong> (lecturers cannot vote in student elections).</p>
+       <p><a href="${loginUrl}">Sign in to The Hub</a></p>`
+    : `<p>Hi ${displayName}, your account is active.</p>
+       <p><a href="${loginUrl}">Sign in to The Hub</a> to get started.</p>`;
   try {
     await getResend().emails.send({
       from: resendFromAddress(),
       to: email,
       subject: 'Welcome to NACOS Achievers',
-      html: `<p>Hi ${displayName}, your account is active. Visit The Hub to get started.</p>`,
+      html,
     });
   } catch (err) {
     logger.warn({ err, email }, 'Failed to send welcome email');

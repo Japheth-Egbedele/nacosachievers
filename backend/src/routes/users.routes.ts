@@ -5,6 +5,7 @@ import { validate } from '../middleware/validate.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { requireActiveUser } from '../middleware/require-active-user.js';
 import { requireMemberPortal } from '../middleware/require-member-portal.js';
+import { requireHubAccount } from '../middleware/require-hub-account.js';
 import { imageUpload } from '../middleware/upload.middleware.js';
 import { uploadRateLimiter } from '../middleware/rate-limiter.js';
 import {
@@ -27,6 +28,7 @@ const patchYearbookSchema = z.object({
 const router = Router();
 
 const memberGuard = [authMiddleware, catchAsync(requireActiveUser), requireMemberPortal];
+const hubAccountGuard = [authMiddleware, catchAsync(requireActiveUser), requireHubAccount];
 
 router.get('/alumni', ...memberGuard, validate(alumniQuerySchema, 'query'), catchAsync(usersController.listAlumni));
 router.get('/leaderboard', ...memberGuard, catchAsync(usersController.leaderboard));
@@ -38,7 +40,7 @@ router.get(
   catchAsync(usersController.lookupUsers),
 );
 
-router.get('/me', ...memberGuard, catchAsync(usersController.getMe));
+router.get('/me', ...hubAccountGuard, catchAsync(usersController.getMe));
 router.patch('/me', ...memberGuard, validate(updateMeSchema), catchAsync(usersController.updateMe));
 router.patch(
   '/me/password',

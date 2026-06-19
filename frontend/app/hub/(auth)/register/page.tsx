@@ -19,6 +19,7 @@ type PinPreview = {
   department_id: string | null;
   year_of_admission: number | null;
   is_staff: boolean;
+  staff_email?: string | null;
 };
 
 export default function HubRegisterPage() {
@@ -59,6 +60,9 @@ export default function HubRegisterPage() {
       );
       setOnboardingToken(data.onboarding_token);
       setPinPreview(data.pin_preview);
+      if (data.pin_preview.is_staff && data.pin_preview.staff_email) {
+        setEmail(data.pin_preview.staff_email);
+      }
       setStep('details');
     } catch (err) {
       setError(pinValidationErrorMessage(err));
@@ -226,12 +230,21 @@ export default function HubRegisterPage() {
               />
             </HubField>
           </div>
-          <HubField label="Email">
+          <HubField
+            label="Email"
+            hint={
+              pinPreview?.is_staff
+                ? 'Locked to the work email your PIN was issued to'
+                : undefined
+            }
+          >
             <HubTextInput
               type="email"
               required
+              readOnly={Boolean(pinPreview?.is_staff)}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              className={pinPreview?.is_staff ? 'bg-[var(--color-hub-surface-muted)]' : undefined}
             />
           </HubField>
           <HubField label="Password">

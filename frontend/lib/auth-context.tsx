@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { apiFetch, loadStoredToken, refreshAccessToken, setAccessToken } from './api';
+import { apiFetch, ApiClientError, loadStoredToken, refreshAccessToken, setAccessToken } from './api';
 import type { AdminScope } from './executive-offices';
 
 export type UserRole = 'member' | 'alumni' | 'executive' | 'staff' | 'super_admin' | 'guest';
@@ -86,7 +86,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       false,
     );
     setAccessToken(data.access_token);
-    await refreshUser();
+    try {
+      const me = await apiFetch<AuthUser>('/users/me');
+      setUser(me);
+    } catch {
+      setAccessToken(null);
+      setUser(null);
+      throw new ApiClientError(
+        'Signed in but could not load your profile. Try again or contact support.',
+        500,
+        'PROFILE_LOAD_FAILED',
+      );
+    }
   };
 
   const logout = async () => {

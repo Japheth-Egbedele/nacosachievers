@@ -33,6 +33,8 @@ interface LiveStats {
     student_id: string | null;
     voted_at: string;
     election_title: string | null;
+    user_id?: string;
+    election_id?: string;
   }>;
 }
 
@@ -151,9 +153,9 @@ export default function AdminElectionsPage() {
                 Recent ballots
               </p>
               <ul className="mt-3 space-y-2">
-                {liveStats.recent_voters.slice(0, 5).map((v, i) => (
+                {liveStats.recent_voters.slice(0, 5).map((v) => (
                   <li
-                    key={`${v.voted_at}-${i}`}
+                    key={`${v.user_id ?? v.voted_at}-${v.election_id ?? ''}`}
                     className="flex flex-wrap items-center justify-between gap-2 text-sm"
                   >
                     <span className="font-medium text-[var(--color-hub-text)]">

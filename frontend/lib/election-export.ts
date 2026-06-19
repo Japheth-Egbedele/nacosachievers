@@ -86,18 +86,6 @@ export function downloadElectionResultsCsv(
   }
   lines.push('');
 
-  const dept = analytics?.extended?.department_turnout ?? [];
-  if (dept.length > 0) {
-    lines.push('Turnout by department');
-    lines.push('Department,Eligible,Voted,Turnout %');
-    for (const d of dept) {
-      lines.push(
-        `${csvEscape(d.department_name)},${d.eligible},${d.voted},${d.turnout_percentage}`,
-      );
-    }
-    lines.push('');
-  }
-
   const levels = analytics?.extended?.level_turnout ?? [];
   if (levels.length > 0) {
     lines.push('Turnout by level');

@@ -44,6 +44,7 @@ export async function validatePinAndIssueToken(
     department_id: string | null;
     year_of_admission: number | null;
     is_staff: boolean;
+    staff_email?: string | null;
   };
 }> {
   await pinLockoutService.assertPinValidationAllowed({
@@ -75,6 +76,7 @@ export async function validatePinAndIssueToken(
         department_id: row.department_id,
         year_of_admission: row.year_of_admission,
         is_staff: isStaff,
+        staff_email: row.staff_email,
       },
     };
   } catch (err) {
@@ -415,6 +417,7 @@ export async function verifyEmail(token: string): Promise<LoginResult> {
     await emailService.sendWelcomeEmail(
       record.email,
       record.display_name ?? 'Member',
+      record.role,
     );
   }
 

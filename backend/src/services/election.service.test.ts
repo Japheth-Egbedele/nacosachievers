@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { buildPositionResults } from '../services/election-results.util.js';
+import { describe, expect, it, vi } from 'vitest';
+import { buildPositionResults, collectStrongestWins } from '../services/election-results.util.js';
 import { soleContestantQuorumMin, soleContestantQuorumMet } from '../utils/election-voters.js';
+import { requireHubAccount } from '../middleware/require-hub-account.js';
+import { ForbiddenError } from '../utils/errors.js';
 
 describe('election-voters quorum', () => {
   it('requires ceil(eligible/3) votes for sole contestant', () => {
@@ -79,5 +81,53 @@ describe('buildPositionResults', () => {
     expect(results[0]!.quorum_not_met).toBe(false);
     expect(results[0]!.winner?.name).toBe('Solo');
     expect(results[0]!.candidates[0]!.is_winner).toBe(true);
+  });
+});
+
+describe('collectStrongestWins', () => {
+  it('lists all winners tied at the peak vote share', () => {
+    const results = [
+      {
+        title: 'President',
+        winner: { name: 'Ada' },
+        candidates: [{ is_winner: true, name: 'Ada', vote_percentage: 100 }],
+      },
+      {
+        title: 'Treasurer',
+        winner: { name: 'Ben' },
+        candidates: [{ is_winner: true, name: 'Ben', vote_percentage: 100 }],
+      },
+      {
+        title: 'Secretary',
+        winner: { name: 'Chidi' },
+        candidates: [{ is_winner: true, name: 'Chidi', vote_percentage: 80 }],
+      },
+    ];
+    const wins = collectStrongestWins(results);
+    expect(wins).toHaveLength(2);
+    expect(wins.map((w) => w.name).sort()).toEqual(['Ada', 'Ben']);
+    expect(wins.every((w) => w.percentage === 100)).toBe(true);
+  });
+});
+
+describe('requireHubAccount', () => {
+  it('allows staff role', () => {
+    const next = vi.fn();
+    requireHubAccount(
+      { user: { id: 'u1', role: 'staff' } } as never,
+      {} as never,
+      next,
+    );
+    expect(next).toHaveBeenCalledWith();
+  });
+
+  it('rejects guest role', () => {
+    const next = vi.fn();
+    requireHubAccount(
+      { user: { id: 'u1', role: 'guest' } } as never,
+      {} as never,
+      next,
+    );
+    expect(next).toHaveBeenCalledWith(expect.any(ForbiddenError));
   });
 });

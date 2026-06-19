@@ -175,45 +175,17 @@ export default function ElectionResultsReport({
               value={`${extended.average_winning_margin}%`}
               hint="Mean gap between 1st and 2nd place"
             />
-            {extended.strongest_candidate && (
-              <InsightCard
-                label="Strongest win"
-                value={extended.strongest_candidate.name}
-                hint={`${extended.strongest_candidate.percentage}% · ${extended.strongest_candidate.position}`}
-              />
+            {(extended.strongest_wins?.length ?? 0) > 0 ? (
+              <StrongestWinInsight wins={extended.strongest_wins!} />
+            ) : (
+              extended.strongest_candidate && (
+                <InsightCard
+                  label="Strongest win"
+                  value={extended.strongest_candidate.name}
+                  hint={`${extended.strongest_candidate.percentage}% · ${extended.strongest_candidate.position}`}
+                />
+              )
             )}
-          </div>
-        </div>
-      )}
-
-      {extended && (extended.department_turnout?.length ?? 0) > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--color-hub-muted)]">
-            Turnout by department
-          </h3>
-          <div className="mt-3 overflow-x-auto rounded-xl border border-[var(--color-hub-border)]">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-[var(--color-hub-surface-muted)] text-xs uppercase text-[var(--color-hub-muted)]">
-                <tr>
-                  <th className="px-4 py-2 font-medium">Department</th>
-                  <th className="px-4 py-2 font-medium">Eligible</th>
-                  <th className="px-4 py-2 font-medium">Voted</th>
-                  <th className="px-4 py-2 font-medium">Turnout</th>
-                </tr>
-              </thead>
-              <tbody>
-                {extended.department_turnout!.map((d) => (
-                  <tr key={d.department_id ?? 'unassigned'} className="border-t border-[var(--color-hub-border)]">
-                    <td className="px-4 py-2">{d.department_name}</td>
-                    <td className="px-4 py-2 tabular-nums">{d.eligible}</td>
-                    <td className="px-4 py-2 tabular-nums">{d.voted}</td>
-                    <td className="px-4 py-2 tabular-nums font-medium text-[var(--color-brand)]">
-                      {d.turnout_percentage}%
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </div>
       )}
@@ -287,6 +259,23 @@ function HeroStat({ label, value, hint }: { label: string; value: string; hint?:
       <p className="mt-1 text-2xl font-bold tabular-nums text-white">{value}</p>
       {hint && <p className="mt-0.5 text-xs text-emerald-100/70">{hint}</p>}
     </div>
+  );
+}
+
+function StrongestWinInsight({
+  wins,
+}: {
+  wins: Array<{ name: string; position: string; percentage: number }>;
+}) {
+  const pct = wins[0]?.percentage ?? 0;
+  const names = wins.map((w) => w.name).join(', ');
+  const positions = wins.map((w) => w.position).join(', ');
+  return (
+    <InsightCard
+      label="Strongest win"
+      value={names}
+      hint={`${pct}% · ${positions}`}
+    />
   );
 }
 

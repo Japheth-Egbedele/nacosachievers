@@ -88,3 +88,46 @@ export function buildPositionResults(
     };
   });
 }
+
+export interface StrongestWinEntry {
+  name: string;
+  position: string;
+  percentage: number;
+}
+
+/** All position winners tied at the highest vote share. */
+export function collectStrongestWins(
+  positionResults: Array<{
+    title: string;
+    quorum_not_met?: boolean;
+    winner?: { name: string } | null;
+    candidates: Array<{ is_winner?: boolean; name: string; vote_percentage?: number }>;
+  }>,
+): StrongestWinEntry[] {
+  const wins: StrongestWinEntry[] = [];
+  let maxPct = -1;
+
+  for (const pos of positionResults) {
+    if (pos.quorum_not_met || !pos.winner) continue;
+    const winnerCandidate = pos.candidates.find((c) => c.is_winner);
+    if (!winnerCandidate) continue;
+    const topPct = winnerCandidate.vote_percentage ?? 0;
+    if (topPct > maxPct) {
+      maxPct = topPct;
+      wins.length = 0;
+      wins.push({
+        name: winnerCandidate.name,
+        position: pos.title,
+        percentage: topPct,
+      });
+    } else if (topPct === maxPct) {
+      wins.push({
+        name: winnerCandidate.name,
+        position: pos.title,
+        percentage: topPct,
+      });
+    }
+  }
+
+  return wins;
+}
